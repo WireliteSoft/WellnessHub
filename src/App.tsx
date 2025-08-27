@@ -1,19 +1,20 @@
+// src/App.tsx
 import React, { useState } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { AuthGate } from "./components/auth/AuthGate";
 import Header from "./components/Header";
 import Dashboard from "./components/Dashboard";
 import NutritionSection from "./components/NutritionSection";
 import ExerciseSection from "./components/ExerciseSection";
 import DiabetesSection from "./components/DiabetesSection";
 import GoalsSection from "./components/GoalsSection";
-import { AuthGate } from "./components/auth/AuthGate";
 
 type Tab = "dashboard" | "nutrition" | "exercise" | "diabetes" | "goals";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <ThemeProvider>
@@ -23,8 +24,8 @@ const App: React.FC = () => {
             <Header
               activeTab={activeTab}
               setActiveTab={setActiveTab}
-              isMobileMenuOpen={isMobileMenuOpen}
-              setIsMobileMenuOpen={setIsMobileMenuOpen}
+              mobileMenuOpen={mobileMenuOpen}
+              setMobileMenuOpen={setMobileMenuOpen}
             />
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
               {activeTab === "dashboard" && <Dashboard />}
