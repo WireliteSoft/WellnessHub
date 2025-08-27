@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AuthGate } from "./components/auth/AuthGate";
+
 import Header from "./components/Header";
 import Dashboard from "./components/Dashboard";
 import NutritionSection from "./components/NutritionSection";
