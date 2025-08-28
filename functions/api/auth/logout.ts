@@ -1,4 +1,3 @@
- DELETE or POST apiauthlogout
 export const onRequestDelete PagesFunction = async ({ env, request }) = {
   const auth = request.headers.get(authorization)  ;
   const m = auth.match(^Bearers+(.+)$i);
