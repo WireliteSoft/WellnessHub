@@ -51,3 +51,34 @@ export interface BloodGlucoseReading {
   mealContext: 'fasting' | 'before-meal' | 'after-meal' | 'bedtime';
   notes?: string;
 }
+
+export type MealCategory = "breakfast" | "lunch" | "dinner" | "snack" | "other";
+
+export interface Ingredient {
+  id: string;
+  name: string;
+  quantity?: string; // e.g., "2 cups", "1 tbsp"
+}
+
+export interface NutritionFacts {
+  calories: number;
+  protein: number; // grams
+  carbs: number;   // grams
+  fat: number;     // grams
+  fiber?: number;  // grams
+  sugar?: number;  // grams
+  sodium?: number; // mg
+}
+
+export interface Recipe {
+  id: string;
+  title: string;
+  category: MealCategory;
+  description?: string;
+  ingredients: Ingredient[];
+  nutrition: NutritionFacts;
+  instructions: string[]; // step-by-step
+  image?: string; // URL or data: URI
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}

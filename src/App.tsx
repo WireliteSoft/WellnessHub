@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AuthGate } from "./components/auth/AuthGate";
+import { RecipesProvider } from "./contexts/RecipesContext";
+import AdminRecipes from "./components/admin/AdminRecipes";
 
 import Header from "./components/Header";
 import Dashboard from "./components/Dashboard";
@@ -10,6 +12,7 @@ import NutritionSection from "./components/NutritionSection";
 import ExerciseSection from "./components/ExerciseSection";
 import DiabetesSection from "./components/DiabetesSection";
 import GoalsSection from "./components/GoalsSection";
+
 
 type Tab = "dashboard" | "nutrition" | "exercise" | "diabetes" | "goals";
 

@@ -20,7 +20,9 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, mobileMenuOpen
     { id: 'exercise', label: 'Exercise' },
     { id: 'diabetes', label: 'Diabetes' },
     { id: 'goals', label: 'Goals' }
+    { id: 'admin', label: 'Admin' }, // <— add this
   ];
+
 
   return (
     <header className="bg-white dark:bg-gray-900 shadow-lg border-b border-gray-100 dark:border-gray-800 transition-colors duration-200">

@@ -1,116 +1,91 @@
-import React, { useState } from 'react';
-import { Apple, Clock, Zap, Heart } from 'lucide-react';
-import { foodRecommendations } from '../data/mockData';
+import React, { useMemo, useState } from "react";
+import { useRecipes } from "../contexts/RecipesContext";
+import type { MealCategory } from "../types";
+
+const categories: (MealCategory | "all")[] = ["all", "breakfast", "lunch", "dinner", "snack", "other"];
 
 const NutritionSection: React.FC = () => {
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack'>('all');
+  const { recipes } = useRecipes();
+  const [filter, setFilter] = useState<MealCategory | "all">("all");
 
-  const categories = [
-    { id: 'all', label: 'All Foods', icon: Apple },
-    { id: 'breakfast', label: 'Breakfast', icon: Clock },
-    { id: 'lunch', label: 'Lunch', icon: Zap },
-    { id: 'dinner', label: 'Dinner', icon: Heart },
-    { id: 'snack', label: 'Snacks', icon: Apple }
-  ];
-
-  const filteredRecommendations = selectedCategory === 'all' 
-    ? foodRecommendations 
-    : foodRecommendations.filter(food => food.category === selectedCategory);
+  const list = useMemo(() => {
+    const arr = recipes ?? [];
+    return filter === "all" ? arr : arr.filter((r) => r.category === filter);
+  }, [recipes, filter]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Nutrition Guidance</h1>
-        <p className="text-gray-600 dark:text-gray-300">Discover healthy, diabetes-friendly meal options tailored for you.</p>
-      </div>
-
-      {/* Category Filters */}
-      <div className="flex flex-wrap gap-2 mb-8">
-        {categories.map((category) => {
-          const IconComponent = category.icon;
-          return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Nutrition</h1>
+        <div className="flex gap-2">
+          {categories.map((c) => (
             <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id as any)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                selectedCategory === category.id
-                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600'
+              key={c}
+              onClick={() => setFilter(c)}
+              className={`px-3 py-1.5 rounded-lg text-sm ${
+                filter === c
+                  ? "bg-gradient-to-r from-emerald-500 to-blue-500 text-white"
+                  : "border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
               }`}
             >
-              <IconComponent className="h-4 w-4" />
-              <span>{category.label}</span>
+              {c}
             </button>
-          );
-        })}
-      </div>
-
-      {/* Food Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredRecommendations.map((food) => (
-          <div key={food.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-md dark:hover:shadow-lg transition-all duration-200">
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{food.name}</h3>
-                {food.diabeticFriendly && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                    Diabetic Friendly
-                  </span>
-                )}
-              </div>
-              
-              <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{food.description}</p>
-              
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{food.calories}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Calories</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-blue-600">{food.protein}g</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Protein</p>
-                </div>
-              </div>
-              
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-4">
-                <span>Carbs: {food.carbs}g</span>
-                <span>Fiber: {food.fiber}g</span>
-              </div>
-              
-              <button className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-2 px-4 rounded-lg font-medium hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200">
-                Add to Meal Plan
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Daily Nutrition Summary */}
-      <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Today's Nutrition Summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-            <p className="text-2xl font-bold text-blue-600">1,245</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Calories</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Goal: 1,800</p>
-          </div>
-          <div className="text-center p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
-            <p className="text-2xl font-bold text-emerald-600">89g</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Protein</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Goal: 120g</p>
-          </div>
-          <div className="text-center p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20">
-            <p className="text-2xl font-bold text-orange-600">145g</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Carbs</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Goal: 180g</p>
-          </div>
-          <div className="text-center p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20">
-            <p className="text-2xl font-bold text-purple-600">18g</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Fiber</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Goal: 25g</p>
-          </div>
+          ))}
         </div>
       </div>
+
+      {list.length === 0 ? (
+        <p className="text-gray-600 dark:text-gray-400">No recipes yet. Add some in Admin → Recipes.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {list.map((r) => (
+            <div key={r.id} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+              {r.image && <img src={r.image} alt={r.title} className="h-40 w-full object-cover" />}
+              <div className="p-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{r.title}</h3>
+                  <span className="text-xs px-2 py-1 rounded-full border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 capitalize">
+                    {r.category}
+                  </span>
+                </div>
+                {r.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{r.description}</p>}
+
+                {/* macros */}
+                <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
+                  <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                    <div className="text-gray-500 dark:text-gray-400">Cal</div>
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">{r.nutrition.calories}</div>
+                  </div>
+                  <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                    <div className="text-gray-500 dark:text-gray-400">P</div>
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">{r.nutrition.protein}g</div>
+                  </div>
+                  <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                    <div className="text-gray-500 dark:text-gray-400">C</div>
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">{r.nutrition.carbs}g</div>
+                  </div>
+                  <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                    <div className="text-gray-500 dark:text-gray-400">F</div>
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">{r.nutrition.fat}g</div>
+                  </div>
+                </div>
+
+                {/* ingredients preview */}
+                {r.ingredients.length > 0 && (
+                  <ul className="mt-4 text-sm text-gray-700 dark:text-gray-300 list-disc pl-5 space-y-1">
+                    {r.ingredients.slice(0, 4).map((i) => (
+                      <li key={i.id || i.name}>
+                        {i.quantity ? `${i.quantity} ` : ""}{i.name}
+                      </li>
+                    ))}
+                    {r.ingredients.length > 4 && <li>…and more</li>}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
