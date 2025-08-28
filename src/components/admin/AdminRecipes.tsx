@@ -122,22 +122,34 @@ export const AdminRecipes: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Title</label>
-                <input className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
-                  value={title} onChange={(e) => setTitle(e.target.value)} />
+                <input
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                             text-gray-900 dark:text-gray-100"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
               </div>
               <div>
                 <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Category</label>
-                <select className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
-                  value={category} onChange={(e) => setCategory(e.target.value as MealCategory)}>
+                <select
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                             text-gray-900 dark:text-gray-100"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as MealCategory)}
+                >
                   {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
             <div className="mt-4">
               <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Description</label>
-              <textarea rows={3}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
-                value={description} onChange={(e) => setDescription(e.target.value)} />
+              <textarea
+                rows={3}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                           text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
             </div>
           </div>
 
@@ -148,24 +160,32 @@ export const AdminRecipes: React.FC = () => {
                 <div key={ing.id} className="grid grid-cols-12 gap-2">
                   <input
                     placeholder="Name (e.g., Oats)"
-                    className="col-span-6 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
+                    className="col-span-6 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                               text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400"
                     value={ing.name}
                     onChange={(e) => updateIngredient(idx, "name", e.target.value)}
                   />
                   <input
                     placeholder="Quantity (e.g., 1 cup)"
-                    className="col-span-5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
+                    className="col-span-5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                               text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400"
                     value={ing.quantity ?? ""}
                     onChange={(e) => updateIngredient(idx, "quantity", e.target.value)}
                   />
-                  <button type="button" onClick={() => removeIngredient(idx)}
-                    className="col-span-1 inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => removeIngredient(idx)}
+                    className="col-span-1 inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
-              <button type="button" onClick={addIngredientRow}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <button
+                type="button"
+                onClick={addIngredientRow}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
                 <Plus className="h-4 w-4" /> Add ingredient
               </button>
             </div>
@@ -179,18 +199,25 @@ export const AdminRecipes: React.FC = () => {
                   <textarea
                     rows={2}
                     placeholder={`Step ${idx + 1}`}
-                    className="col-span-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
+                    className="col-span-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                               text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400"
                     value={step}
                     onChange={(e) => updateInstruction(idx, e.target.value)}
                   />
-                  <button type="button" onClick={() => removeInstruction(idx)}
-                    className="col-span-1 inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => removeInstruction(idx)}
+                    className="col-span-1 inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
-              <button type="button" onClick={addInstructionRow}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <button
+                type="button"
+                onClick={addInstructionRow}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
                 <Plus className="h-4 w-4" /> Add step
               </button>
             </div>
@@ -214,8 +241,10 @@ export const AdminRecipes: React.FC = () => {
                 <div key={key}>
                   <label className="block text-xs mb-1 text-gray-600 dark:text-gray-400">{label}</label>
                   <input
-                    type="number" step="any"
-                    className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
+                    type="number"
+                    step="any"
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                               text-gray-900 dark:text-gray-100"
                     value={(nutrition as any)[key] ?? 0}
                     onChange={(e) => setNutrition({ ...nutrition, [key]: Number(e.target.value) } as NutritionFacts)}
                   />
@@ -231,8 +260,10 @@ export const AdminRecipes: React.FC = () => {
                 <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Image URL (optional)</label>
                 <input
                   placeholder="https://…"
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2"
-                  value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2
+                             text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
                 />
               </div>
               <div>
@@ -250,8 +281,11 @@ export const AdminRecipes: React.FC = () => {
           <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
             {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
             {createdId && <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-3">Saved ✓</p>}
-            <button type="submit" disabled={saving}
-              className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-medium py-2.5 hover:opacity-95 disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-medium py-2.5 hover:opacity-95 disabled:opacity-60"
+            >
               {saving ? "Saving…" : "Save recipe"}
             </button>
           </div>
