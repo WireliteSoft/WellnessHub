@@ -36,17 +36,15 @@ const handleLogout = async () => {
     if (t) {
       await fetch('/api/auth/logout', {
         method: 'POST',
-        headers: { Authorization: 'Bearer ' + t },
+        headers: { Authorization: 'Bearer ' + t }
       });
     }
   } catch {}
-  // nuke client auth
   localStorage.removeItem('auth:token');
   localStorage.removeItem('auth:user');
-  // if your AuthContext.logout() clears state, call it too:
+  // if you expose logout() from context, call it too
   logout?.();
-  // send to login/landing
-  window.location.replace('/welcome'); // <-- hard redirect to your login screen
+  window.location.replace('/welcome'); // no back button to app
 };
 
 

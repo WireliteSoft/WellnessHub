@@ -12,7 +12,11 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      if (value === null || value === undefined) {
+        localStorage.removeItem(key);   // <-- key really goes away
+      } else {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
     } catch {
       // ignore write errors (private mode, etc.)
     }
