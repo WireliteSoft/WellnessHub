@@ -19,8 +19,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, mobileMenuOpen
     { id: 'nutrition', label: 'Nutrition' },
     { id: 'exercise', label: 'Exercise' },
     { id: 'diabetes', label: 'Diabetes' },
-    { id: 'goals', label: 'Goals' }
-    { id: 'admin', label: 'Admin' }, // <— add this
+    { id: 'goals', label: 'Goals' },
+    { id: 'admin', label: 'Admin' } // <— add this
   ];
 
 
