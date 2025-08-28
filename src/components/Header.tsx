@@ -17,34 +17,31 @@ const Header: React.FC<HeaderProps> = ({
   setMobileMenuOpen
 }) => {
   const { isDarkMode, toggleTheme } = useTheme();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
-  const navItems = [
+  // D1 returns 0/1. In case your context normalizes to boolean, handle both.
+  const isAdmin = user?.is_admin === 1 || user?.is_admin === true;
+
+  const baseNav = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'nutrition', label: 'Nutrition' },
     { id: 'exercise', label: 'Exercise' },
     { id: 'diabetes', label: 'Diabetes' },
-    { id: 'goals', label: 'Goals' },
-    { id: 'admin', label: 'Admin' } // keep for now; we can gate by is_admin later
-  ];
+    { id: 'goals', label: 'Goals' }
+  ] as const;
 
   const handleLogout = async () => {
     try {
       const t = localStorage.getItem('auth:token');
       if (t) {
         await fetch('/api/auth/logout', {
-          method: 'POST', // supported by the endpoint I gave you
+          method: 'POST',
           headers: { Authorization: 'Bearer ' + t }
         });
       }
-    } catch {
-      // ignore network errors; we still clear client state
-    } finally {
-      // clears local storage / context in your AuthContext
-      logout();
-      // send them back to the public landing
-      window.location.href = '/';
-    }
+    } catch { /* ignore */ }
+    logout();               // clears client state
+    window.location.href = '/'; // back to public landing
   };
 
   return (
@@ -63,7 +60,7 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
-            {navItems.map((item) => (
+            {baseNav.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
@@ -76,6 +73,20 @@ const Header: React.FC<HeaderProps> = ({
                 {item.label}
               </button>
             ))}
+
+            {/* Conditionally show Admin */}
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  activeTab === 'admin'
+                    ? 'bg-gradient-to-r from-emerald-500 to-blue-500 text-white shadow-md transform scale-105'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                Admin
+              </button>
+            )}
 
             {/* Theme Toggle */}
             <button
@@ -100,7 +111,6 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center space-x-2">
-            {/* Mobile Theme Toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -123,7 +133,7 @@ const Header: React.FC<HeaderProps> = ({
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-gray-100 dark:border-gray-800">
             <div className="flex flex-col space-y-2">
-              {navItems.map((item) => (
+              {baseNav.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => {
@@ -139,6 +149,23 @@ const Header: React.FC<HeaderProps> = ({
                   {item.label}
                 </button>
               ))}
+
+              {/* Conditionally show Admin (mobile) */}
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`px-4 py-3 rounded-lg font-medium text-left transition-all duration-200 ${
+                    activeTab === 'admin'
+                      ? 'bg-gradient-to-r from-emerald-500 to-blue-500 text-white shadow-md transform scale-105'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  Admin
+                </button>
+              )}
 
               {/* Mobile Logout */}
               <button
