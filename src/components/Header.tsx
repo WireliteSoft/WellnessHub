@@ -30,19 +30,25 @@ const Header: React.FC<HeaderProps> = ({
     { id: 'goals', label: 'Goals' }
   ] as const;
 
-  const handleLogout = async () => {
-    try {
-      const t = localStorage.getItem('auth:token');
-      if (t) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + t }
-        });
-      }
-    } catch { /* ignore */ }
-    logout();               // clears client state
-    window.location.href = '/'; // back to public landing
-  };
+const handleLogout = async () => {
+  try {
+    const t = localStorage.getItem('auth:token');
+    if (t) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + t },
+      });
+    }
+  } catch {}
+  // nuke client auth
+  localStorage.removeItem('auth:token');
+  localStorage.removeItem('auth:user');
+  // if your AuthContext.logout() clears state, call it too:
+  logout?.();
+  // send to login/landing
+  window.location.replace('/welcome'); // <-- hard redirect to your login screen
+};
+
 
   return (
     <header className="bg-white dark:bg-gray-900 shadow-lg border-b border-gray-100 dark:border-gray-800 transition-colors duration-200">
