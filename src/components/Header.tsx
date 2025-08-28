@@ -10,7 +10,12 @@ interface HeaderProps {
   setMobileMenuOpen: (open: boolean) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, mobileMenuOpen, setMobileMenuOpen }) => {
+const Header: React.FC<HeaderProps> = ({
+  activeTab,
+  setActiveTab,
+  mobileMenuOpen,
+  setMobileMenuOpen
+}) => {
   const { isDarkMode, toggleTheme } = useTheme();
   const { logout } = useAuth();
 
@@ -20,9 +25,27 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, mobileMenuOpen
     { id: 'exercise', label: 'Exercise' },
     { id: 'diabetes', label: 'Diabetes' },
     { id: 'goals', label: 'Goals' },
-    { id: 'admin', label: 'Admin' } // <— add this
+    { id: 'admin', label: 'Admin' } // keep for now; we can gate by is_admin later
   ];
 
+  const handleLogout = async () => {
+    try {
+      const t = localStorage.getItem('auth:token');
+      if (t) {
+        await fetch('/api/auth/logout', {
+          method: 'POST', // supported by the endpoint I gave you
+          headers: { Authorization: 'Bearer ' + t }
+        });
+      }
+    } catch {
+      // ignore network errors; we still clear client state
+    } finally {
+      // clears local storage / context in your AuthContext
+      logout();
+      // send them back to the public landing
+      window.location.href = '/';
+    }
+  };
 
   return (
     <header className="bg-white dark:bg-gray-900 shadow-lg border-b border-gray-100 dark:border-gray-800 transition-colors duration-200">
@@ -65,8 +88,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, mobileMenuOpen
 
             {/* Logout */}
             <button
-              onClick={logout}
-              className="ml-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 flex items-center"
+              onClick={handleLogout}
+              className="ml-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 inline-flex items-center"
               aria-label="Log out"
               title="Log out"
             >
@@ -121,9 +144,9 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, mobileMenuOpen
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  logout();
+                  handleLogout();
                 }}
-                className="mt-2 px-4 py-3 rounded-lg font-medium text-left transition-all duration-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center"
+                className="mt-2 px-4 py-3 rounded-lg font-medium text-left transition-all duration-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 inline-flex items-center"
                 aria-label="Log out"
                 title="Log out"
               >
