@@ -1,61 +1,46 @@
 import { requireUser, requireAdmin } from "../../../_utils/auth";
 
-type Env = { DB: D1Database };
-
-function text(msg: string, status = 400) {
-  return new Response(msg, { status });
-}
-
-function json(data: unknown, init: ResponseInit = {}) {
-  return new Response(JSON.stringify(data), {
-    status: init.status ?? 200,
-    headers: { "content-type": "application/json; charset=utf-8", ...init.headers },
-  });
-}
-
-export const onRequestPatch: PagesFunction<Env> = async ({ env, request, params }) => {
+// PATCH /api/admin/users/:id  { is_admin?: boolean, is_nutritionist?: boolean }
+export const onRequestPatch: PagesFunction = async ({ env, request, params }) => {
   const me = await requireUser(env as any, request);
   requireAdmin(me);
 
   const id = String(params?.id || "");
-  if (!id) return text("missing id", 400);
+  if (!id) return new Response("missing id", { status: 400 });
 
   let body: any = null;
-  try {
-    body = await request.json();
-  } catch { /* ignore */ }
+  try { body = await request.json(); } catch { /* ignore */ }
 
-  const allowedKeys = ["is_admin", "is_nutritionist"];
-  const patch: Record<string, any> = {};
-  for (const k of allowedKeys) {
-    if (k in (body ?? {})) {
-      const v = body[k];
-      if (typeof v !== "boolean") return text(`invalid ${k}`, 400);
-      patch[k] = v ? 1 : 0;
-    }
+  const sets: string[] = [];
+  const binds: any[] = [];
+
+  if (typeof body?.is_admin === "boolean") {
+    sets.push("is_admin = ?");
+    binds.push(body.is_admin ? 1 : 0);
   }
-  if (Object.keys(patch).length === 0) return text("no changes", 400);
-
-  // Prevent self-lockout (optional): don’t allow removing your own admin
-  if (me.id === id && patch.is_admin === 0) {
-    return text("refusing to remove your own admin role", 403);
+  if (typeof body?.is_nutritionist === "boolean") {
+    sets.push("is_nutritionist = ?");
+    binds.push(body.is_nutritionist ? 1 : 0);
   }
 
-  const sets = Object.keys(patch).map((k) => `${k}=?`).join(", ");
-  const binds = [...Object.values(patch), id];
+  if (sets.length === 0) return new Response("no changes", { status: 400 });
 
-  await env.DB
-    .prepare(`UPDATE users SET ${sets}, updated_at=datetime('now') WHERE id=?`)
-    .bind(...binds)
-    .run();
+  const sql = `UPDATE users SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = ?`;
+  binds.push(id);
 
-  const rs = await env.DB
+  const res = await env.DB.prepare(sql).bind(...binds).run();
+  if (res.meta.changes === 0) return new Response("not found", { status: 404 });
+
+  const row = await env.DB
     .prepare(
-      `SELECT id, email, name, is_admin, is_nutritionist, created_at
-         FROM users WHERE id=?`
+      `SELECT u.id, u.email, u.name, u.is_admin, u.is_nutritionist, u.created_at,
+              COALESCE(b.balance_cents,0) AS balance_cents
+       FROM users u
+       LEFT JOIN user_balances b ON b.user_id = u.id
+       WHERE u.id = ?`
     )
     .bind(id)
-    .all();
+    .first();
 
-  return json((rs.results ?? [])[0] ?? {});
+  return new Response(JSON.stringify(row ?? {}), { headers: { "content-type": "application/json" } });
 };
