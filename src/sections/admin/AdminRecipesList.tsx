@@ -1,32 +1,30 @@
-// src/sections/admin/AdminRecipesList.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { Search, RefreshCcw, Trash2 } from "lucide-react";
+import { Search, RefreshCcw, Eye, EyeOff, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 
-type AdminRecipeRow = {
+type Row = {
   id: string;
   title: string;
   category: string;
   description?: string | null;
-  image?: string | null;
+  image_url?: string | null;
   is_public: number;
   published: number;
   created_at: string;
-  created_by_email: string | null;
-  calories: number;
-  protein_g: number;
-  carbs_g: number;
-  fat_g: number;
-  ingredient_count: number;
-  step_count: number;
+  updated_at: string;
+  calories?: number | null;
+  protein_g?: number | null;
+  carbs_g?: number | null;
+  fat_g?: number | null;
+  ingredient_count?: number | null;
 };
 
 const AdminRecipesList: React.FC = () => {
   const { token } = useAuth();
   const [q, setQ] = useState("");
+  const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<AdminRecipeRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   const headers = useMemo(
     () => ({
@@ -36,45 +34,58 @@ const AdminRecipesList: React.FC = () => {
     [token]
   );
 
-  async function load(signal?: AbortSignal) {
+  async function load() {
+    if (!token) return; // wait for auth
     setLoading(true);
-    setError(null);
+    setErr(null);
     try {
-      const url = `/api/admin/recipes?limit=200&search=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { headers, signal });
+      const res = await fetch(`/api/admin/recipes?limit=200&search=${encodeURIComponent(q)}`, { headers });
       if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as AdminRecipeRow[];
+      const data = (await res.json()) as Row[];
       setRows(data);
     } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        setError(e?.message || "Failed to load recipes");
-      }
+      setErr(e?.message || "Failed to load recipes");
     } finally {
       setLoading(false);
     }
   }
 
+  // Auto-load when token becomes available
+  useEffect(() => { if (token) load(); }, [token]);
+
+  // Debounced search
   useEffect(() => {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => load(ctrl.signal), 250);
-    return () => {
-      ctrl.abort();
-      clearTimeout(t);
-    };
+    if (!token) return;
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, token]);
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this recipe? This cannot be undone.")) return;
+  async function patch(id: string, body: Partial<Pick<Row, "is_public" | "published" | "title" | "category" | "description" | "image_url">>) {
+    if (!token) return;
     try {
       const res = await fetch(`/api/admin/recipes/${id}`, {
-        method: "DELETE",
+        method: "PATCH",
         headers,
+        body: JSON.stringify(body),
       });
-      if (!res.ok && res.status !== 204) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await res.text());
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...body, updated_at: new Date().toISOString() } : r)));
+    } catch (e: any) {
+      setErr(e?.message || "Update failed");
+      load();
+    }
+  }
+
+  async function del(id: string) {
+    if (!token) return;
+    if (!confirm("Delete this recipe?")) return;
+    try {
+      const res = await fetch(`/api/admin/recipes/${id}`, { method: "DELETE", headers });
+      if (!res.ok) throw new Error(await res.text());
       setRows((prev) => prev.filter((r) => r.id !== id));
     } catch (e: any) {
-      setError(e?.message || "Delete failed");
+      setErr(e?.message || "Delete failed");
     }
   }
 
@@ -86,21 +97,21 @@ const AdminRecipesList: React.FC = () => {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by title or category"
+            placeholder="Search recipes..."
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100"
           />
         </div>
         <button
-          onClick={() => load()}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+          onClick={load}
           disabled={loading}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
         >
           <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </button>
       </div>
 
-      {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
+      {err && <div className="text-sm text-red-600 dark:text-red-400">{err}</div>}
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
         <table className="min-w-full text-sm">
@@ -109,11 +120,8 @@ const AdminRecipesList: React.FC = () => {
               <th className="text-left px-3 py-2">Title</th>
               <th className="text-left px-3 py-2">Category</th>
               <th className="text-left px-3 py-2">Macros</th>
-              <th className="text-left px-3 py-2">Counts</th>
-              <th className="text-left px-3 py-2">Created</th>
-              <th className="text-left px-3 py-2">By</th>
-              <th className="text-left px-3 py-2">State</th>
-              <th className="px-3 py-2"></th>
+              <th className="text-left px-3 py-2">Status</th>
+              <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
@@ -121,51 +129,36 @@ const AdminRecipesList: React.FC = () => {
               <tr key={r.id} className="text-gray-900 dark:text-gray-100">
                 <td className="px-3 py-2">
                   <div className="font-medium">{r.title}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[22rem]">
-                    {r.description || "—"}
-                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{r.id}</div>
                 </td>
                 <td className="px-3 py-2 capitalize">{r.category}</td>
-                <td className="px-3 py-2">
-                  <div className="text-xs text-gray-700 dark:text-gray-300">
-                    Cal {r.calories} · P {r.protein_g}g · C {r.carbs_g}g · F {r.fat_g}g
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
-                  {r.ingredient_count} ingredients · {r.step_count} steps
-                </td>
-                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                  {new Date(r.created_at).toLocaleString()}
-                </td>
-                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                  {r.created_by_email || "—"}
+                <td className="px-3 py-2 text-xs">
+                  {r.calories ?? 0} cal • P {r.protein_g ?? 0}g • C {r.carbs_g ?? 0}g • F {r.fat_g ?? 0}g
                 </td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-2 text-xs">
-                    <span
-                      className={`px-2 py-0.5 rounded-full border ${
-                        r.is_public
-                          ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-                          : "border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300"
-                      }`}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => patch(r.id, { published: !(r.published === 1) })}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border text-xs border-gray-300 dark:border-gray-700"
+                      title="Toggle published"
                     >
-                      public
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full border ${
-                        r.published
-                          ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                          : "border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300"
-                      }`}
+                      {r.published ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                      {r.published ? "Published" : "Unpublished"}
+                    </button>
+                    <button
+                      onClick={() => patch(r.id, { is_public: !(r.is_public === 1) })}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border text-xs border-gray-300 dark:border-gray-700"
+                      title="Toggle visibility"
                     >
-                      published
-                    </span>
+                      {r.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      {r.is_public ? "Public" : "Private"}
+                    </button>
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right">
                   <button
-                    onClick={() => handleDelete(r.id)}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    onClick={() => del(r.id)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                     title="Delete recipe"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -176,8 +169,15 @@ const AdminRecipesList: React.FC = () => {
             ))}
             {rows.length === 0 && !loading && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-gray-600 dark:text-gray-400">
+                <td colSpan={5} className="px-3 py-6 text-center text-gray-600 dark:text-gray-400">
                   No recipes found.
+                </td>
+              </tr>
+            )}
+            {loading && rows.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-gray-600 dark:text-gray-400">
+                  Loading…
                 </td>
               </tr>
             )}
