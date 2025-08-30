@@ -1,7 +1,8 @@
+// src/sections/admin/AdminPanel.tsx
 import React, { useState } from "react";
 import { Users, BookOpen } from "lucide-react";
-import AdminRecipes from "./AdminRecipes";
-import AdminUsers from "./AdminUsers";
+import AdminRecipes from "../../components/admin/AdminRecipes"; // ✔ components path
+import AdminUsers from "./AdminUsers";                          // ✔ same folder
 
 const AdminPanel: React.FC = () => {
   const [tab, setTab] = useState<"recipes" | "users">("recipes");
@@ -37,9 +38,7 @@ const AdminPanel: React.FC = () => {
         </div>
       </header>
 
-      <div>
-        {tab === "recipes" ? <AdminRecipes /> : <AdminUsers />}
-      </div>
+      <div>{tab === "recipes" ? <AdminRecipes /> : <AdminUsers />}</div>
     </div>
   );
 };

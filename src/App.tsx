@@ -11,8 +11,8 @@ import NutritionSection from "./components/NutritionSection";
 import ExerciseSection from "./components/ExerciseSection";
 import DiabetesSection from "./components/DiabetesSection";
 import GoalsSection from "./components/GoalsSection";
-// import AdminRecipes from "./components/admin/AdminRecipes"; // replaced by AdminPanel
-import AdminPanel from "./components/admin/AdminPanel"; // <-- new tabbed admin area (Recipes + Users)
+// import AdminRecipes from "./components/admin/AdminRecipes"; // old
+import AdminPanel from "./sections/admin/AdminPanel"; // ✔ correct folder
 
 type Tab = "dashboard" | "nutrition" | "exercise" | "diabetes" | "goals" | "admin";
 
@@ -42,7 +42,7 @@ const App: React.FC = () => {
                 {activeTab === "exercise" && <ExerciseSection />}
                 {activeTab === "diabetes" && <DiabetesSection />}
                 {activeTab === "goals" && <GoalsSection />}
-                {activeTab === "admin" && <AdminPanel />}
+                {activeTab === "admin" && <AdminPanel />} {/* tabbed admin */}
               </main>
             </div>
           </RecipesProvider>
