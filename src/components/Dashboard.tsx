@@ -1,141 +1,282 @@
-import React from 'react';
-import { TrendingUp, Target, Apple, Dumbbell, Heart, Calendar } from 'lucide-react';
+// src/components/Dashboard.tsx
+import React, { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { Activity, HeartPulse, FlameKindling, Clock, TrendingUp } from "lucide-react";
+
+type WorkoutRow = {
+  id: string;
+  name: string;
+  type: "cardio" | "strength" | "flexibility" | "balance" | "other";
+  duration_min: number;
+  intensity: "low" | "moderate" | "high";
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type GlucoseRow = {
+  id: string;
+  mg_dl: number;
+  reading_time: string; // ISO
+  meal_context?: "fasting" | "pre-meal" | "post-meal" | "bedtime" | "other" | null;
+  notes?: string | null;
+};
+
+function authHeaders() {
+  const t = typeof window !== "undefined" ? localStorage.getItem("auth:token") : null;
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+function startOfWeek(d = new Date()) {
+  const copy = new Date(d);
+  const day = copy.getDay(); // 0=Sun..
+  const diff = (day + 6) % 7; // make Monday the start (adjust as desired)
+  copy.setHours(0, 0, 0, 0);
+  copy.setDate(copy.getDate() - diff);
+  return copy;
+}
+
+function fmtDate(s?: string) {
+  if (!s) return "";
+  const d = new Date(s);
+  return d.toLocaleString();
+}
 
 const Dashboard: React.FC = () => {
-  const stats = [
-    {
-      label: 'Goals Completed',
-      value: '7/10',
-      icon: Target,
-      color: 'from-emerald-500 to-emerald-600',
-      bgColor: 'bg-emerald-50'
-    },
-    {
-      label: 'Avg Blood Glucose',
-      value: '128 mg/dL',
-      icon: Heart,
-      color: 'from-blue-500 to-blue-600',
-      bgColor: 'bg-blue-50'
-    },
-    {
-      label: 'Weekly Exercise',
-      value: '4/5 sessions',
-      icon: Dumbbell,
-      color: 'from-purple-500 to-purple-600',
-      bgColor: 'bg-purple-50'
-    },
-    {
-      label: 'Nutrition Score',
-      value: '85/100',
-      icon: Apple,
-      color: 'from-orange-500 to-orange-600',
-      bgColor: 'bg-orange-50'
-    }
-  ];
+  const { user } = useAuth();
+  const displayName = user?.name?.trim() || user?.email || "Welcome";
 
-  const recentActivities = [
-    { time: '2 hours ago', activity: 'Logged blood glucose: 142 mg/dL', type: 'diabetes' },
-    { time: '4 hours ago', activity: 'Completed 30min brisk walk', type: 'exercise' },
-    { time: '6 hours ago', activity: 'Ate Greek yogurt with berries', type: 'nutrition' },
-    { time: '1 day ago', activity: 'Reached daily water intake goal', type: 'goal' }
-  ];
+  const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
+  const [glucose, setGlucose] = useState<GlucoseRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
-  const getActivityColor = (type: string) => {
-    switch (type) {
-      case 'diabetes': return 'text-red-600 bg-red-50';
-      case 'exercise': return 'text-purple-600 bg-purple-50';
-      case 'nutrition': return 'text-green-600 bg-green-50';
-      case 'goal': return 'text-blue-600 bg-blue-50';
-      default: return 'text-gray-600 bg-gray-50';
-    }
-  };
+  // Load real data
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+
+        const [wRes, gRes] = await Promise.all([
+          fetch("/api/workouts", { headers: { ...authHeaders() } }),
+          fetch("/api/glucose", { headers: { ...authHeaders() } }),
+        ]);
+
+        if (!wRes.ok) throw new Error(`GET /api/workouts ${wRes.status}`);
+        if (!gRes.ok) throw new Error(`GET /api/glucose ${gRes.status}`);
+
+        const wRows: WorkoutRow[] = await wRes.json();
+        const gRows: GlucoseRow[] = await gRes.json();
+
+        setWorkouts(Array.isArray(wRows) ? wRows : []);
+        setGlucose(Array.isArray(gRows) ? gRows : []);
+      } catch (e: any) {
+        console.error(e);
+        setErr("Failed to load dashboard data.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // Derived stats
+  const {
+    workoutsThisWeek,
+    minutesThisWeek,
+    lastWorkout,
+    avgGlucose14d,
+    inRangePct14d,
+    lastGlucose,
+  } = useMemo(() => {
+    const now = new Date();
+    const sow = startOfWeek(now);
+    const wThisWeek = workouts.filter((w) => {
+      const t = w.created_at ? new Date(w.created_at) : null;
+      return t ? t >= sow : false;
+    });
+    const minThisWeek = wThisWeek.reduce((sum, w) => sum + (Number(w.duration_min) || 0), 0);
+    const lastW = [...workouts].sort((a, b) => {
+      const ta = a.created_at ? +new Date(a.created_at) : 0;
+      const tb = b.created_at ? +new Date(b.created_at) : 0;
+      return tb - ta;
+    })[0];
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+    const g14 = glucose.filter((g) => new Date(g.reading_time) >= cutoff);
+    const avg = g14.length ? Math.round(g14.reduce((s, r) => s + r.mg_dl, 0) / g14.length) : null;
+    const inRange = g14.length ? Math.round((g14.filter((r) => r.mg_dl >= 70 && r.mg_dl <= 180).length / g14.length) * 100) : null;
+
+    const lastG = [...glucose].sort((a, b) => +new Date(b.reading_time) - +new Date(a.reading_time))[0];
+
+    return {
+      workoutsThisWeek: wThisWeek.length,
+      minutesThisWeek: minThisWeek,
+      lastWorkout: lastW,
+      avgGlucose14d: avg,
+      inRangePct14d: inRange,
+      lastGlucose: lastG,
+    };
+  }, [workouts, glucose]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome back, Sarah!</h1>
-        <p className="text-gray-600 dark:text-gray-300">Here's your health overview for today.</p>
+        <div className="flex items-center space-x-3">
+          <div className="bg-gradient-to-br from-emerald-500 to-blue-600 p-2 rounded-lg shadow-md">
+            <Activity className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
+              Hey, {displayName.split("@")[0]}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Your wellness snapshot, based on your real data.
+            </p>
+            {err && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{err}</p>}
+          </div>
+        </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat, index) => {
-          const IconComponent = stat.icon;
-          return (
-            <div key={index} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 hover:shadow-md dark:hover:shadow-lg transition-all duration-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{stat.label}</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor} dark:bg-opacity-20`}>
-                  <IconComponent className={`h-6 w-6 bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`} />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Today's Progress */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2 text-emerald-600" />
-            Today's Progress
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600 dark:text-gray-400">Water Intake</span>
-                <span className="text-gray-900 dark:text-white font-medium">6/8 glasses</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div className="bg-gradient-to-r from-blue-400 to-blue-500 h-2 rounded-full" style={{ width: '75%' }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600 dark:text-gray-400">Daily Steps</span>
-                <span className="text-gray-900 dark:text-white font-medium">8,245/10,000</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div className="bg-gradient-to-r from-emerald-400 to-emerald-500 h-2 rounded-full" style={{ width: '82%' }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600 dark:text-gray-400">Exercise Time</span>
-                <span className="text-gray-900 dark:text-white font-medium">25/30 minutes</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div className="bg-gradient-to-r from-purple-400 to-purple-500 h-2 rounded-full" style={{ width: '83%' }}></div>
-              </div>
-            </div>
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Workouts this week</span>
+            <FlameKindling className="h-5 w-5 text-emerald-500" />
           </div>
+          <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            {loading ? "…" : workoutsThisWeek}
+          </p>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <Calendar className="h-5 w-5 mr-2 text-blue-600" />
-            Recent Activity
-          </h3>
-          <div className="space-y-4">
-            {recentActivities.map((activity, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <div className={`p-1.5 rounded-full ${getActivityColor(activity.type)}`}>
-                  <div className="w-2 h-2 rounded-full bg-current"></div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900 dark:text-white font-medium">{activity.activity}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{activity.time}</p>
-                </div>
-              </div>
-            ))}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Active minutes (week)</span>
+            <Clock className="h-5 w-5 text-blue-500" />
           </div>
+          <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            {loading ? "…" : minutesThisWeek}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Avg glucose (14d)</span>
+            <HeartPulse className="h-5 w-5 text-rose-500" />
+          </div>
+          <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            {loading ? "…" : (avgGlucose14d ?? "—")}
+            <span className="text-base font-normal text-gray-500 dark:text-gray-400 ml-2">mg/dL</span>
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            In range (70–180): {loading ? "…" : (inRangePct14d === null ? "—" : `${inRangePct14d}%`)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Last reading</span>
+            <TrendingUp className="h-5 w-5 text-violet-500" />
+          </div>
+          <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            {loading || !lastGlucose ? "—" : lastGlucose.mg_dl}
+            <span className="text-base font-normal text-gray-500 dark:text-gray-400 ml-2">mg/dL</span>
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {loading || !lastGlucose ? "" : fmtDate(lastGlucose.reading_time)}
+          </p>
         </div>
       </div>
+
+      {/* Recent activity */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recent activity</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Latest workouts and glucose logs.
+          </p>
+        </div>
+
+        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          {/* Show up to 10 combined items */}
+          {(() => {
+            // Normalize to one list with a timestamp
+            const items: { when: string; node: React.ReactNode; key: string }[] = [];
+
+            workouts.slice(0, 10).forEach((w) => {
+              const when = w.created_at ?? w.updated_at ?? new Date().toISOString();
+              items.push({
+                key: "w-" + w.id,
+                when,
+                node: (
+                  <li className="p-5 flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <div className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 p-2 rounded-lg">
+                        <Activity className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Workout: {w.name} · {w.duration_min} min · {w.intensity}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {fmtDate(when)}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                ),
+              });
+            });
+
+            glucose.slice(0, 10).forEach((g) => {
+              items.push({
+                key: "g-" + g.id,
+                when: g.reading_time,
+                node: (
+                  <li className="p-5 flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <div className="bg-rose-500/10 text-rose-600 dark:text-rose-400 p-2 rounded-lg">
+                        <HeartPulse className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Glucose: {g.mg_dl} mg/dL {g.meal_context ? `· ${g.meal_context}` : ""}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {fmtDate(g.reading_time)}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                ),
+              });
+            });
+
+            // Sort newest first and take top 10 mixed
+            items.sort((a, b) => +new Date(b.when) - +new Date(a.when));
+            return items.slice(0, 10).map((it) => <React.Fragment key={it.key}>{it.node}</React.Fragment>);
+          })()}
+        </ul>
+
+        <div className="p-4 text-right">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Data updates when you log a workout or glucose reading.
+          </span>
+        </div>
+      </div>
+
+      {/* Last workout quick summary */}
+      {lastWorkout && (
+        <div className="mt-8 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Last workout</h3>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            {lastWorkout.name} · {lastWorkout.duration_min} minutes · {lastWorkout.intensity} · {fmtDate(lastWorkout.created_at)}
+          </p>
+        </div>
+      )}
     </div>
   );
 };
