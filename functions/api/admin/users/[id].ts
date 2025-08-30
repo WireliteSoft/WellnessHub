@@ -1,38 +1,46 @@
-// functions/api/admin/users/[id].ts
 import { requireUser, requireAdmin } from "../../../_utils/auth";
 
+// PATCH /api/admin/users/:id  { is_admin?: boolean, is_nutritionist?: boolean }
 export const onRequestPatch: PagesFunction = async ({ env, request, params }) => {
-  const user = await requireUser(env as any, request);
-  requireAdmin(user);
+  const me = await requireUser(env as any, request);
+  requireAdmin(me);
 
   const id = String(params?.id || "");
   if (!id) return new Response("bad request", { status: 400 });
 
-  let body: any = null;
+  let body: Partial<{ is_admin: boolean; is_nutritionist: boolean }> = {};
   try { body = await request.json(); } catch {}
-  if (!body || (body.is_admin === undefined && body.is_nutritionist === undefined)) {
-    return new Response("no changes", { status: 400 });
-  }
 
   const sets: string[] = [];
   const binds: any[] = [];
-
-  if (body.is_admin !== undefined) {
+  if (typeof body.is_admin === "boolean") {
     sets.push("is_admin = ?");
     binds.push(body.is_admin ? 1 : 0);
   }
-  if (body.is_nutritionist !== undefined) {
+  if (typeof body.is_nutritionist === "boolean") {
     sets.push("is_nutritionist = ?");
     binds.push(body.is_nutritionist ? 1 : 0);
   }
+  if (sets.length === 0) return new Response("no fields", { status: 400 });
 
-  sets.push("updated_at = datetime('now')");
-
-  const sql = `UPDATE users SET ${sets.join(", ")} WHERE id = ?`;
   binds.push(id);
 
-  const res = await env.DB.prepare(sql).bind(...binds).run();
-  if ((res.changes ?? 0) === 0) return new Response("not found", { status: 404 });
+  try {
+    await env.DB.prepare(
+      `UPDATE users SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = ?`,
+    ).bind(...binds).run();
 
-  return new Response("ok");
+    const { results } = await env.DB.prepare(
+      `SELECT id, email, name, is_admin, is_nutritionist, created_at FROM users WHERE id = ?`,
+    ).bind(id).all();
+
+    return new Response(JSON.stringify(results?.[0] ?? null), {
+      headers: { "content-type": "application/json" },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: "update_failed", detail: String(err?.message || err) }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
 };
