@@ -1,3 +1,4 @@
+// src/components/admin/AdminUsers.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Search, Shield, Stethoscope, RefreshCcw } from "lucide-react";
@@ -9,8 +10,8 @@ type AdminUserRow = {
   is_admin: number;
   is_nutritionist: number;
   created_at: string;
-  balance_cents: number;          // from view user_balances (nullable -> 0)
-  active_subscriptions: number;   // count
+  balance_cents: number;
+  active_subscriptions: number;
 };
 
 const currency = (cents: number) =>
@@ -27,6 +28,7 @@ const AdminUsers: React.FC = () => {
     () => ({
       Authorization: `Bearer ${token}`,
       "content-type": "application/json",
+      Accept: "application/json",
     }),
     [token]
   );
@@ -37,11 +39,29 @@ const AdminUsers: React.FC = () => {
     try {
       const url = `/api/admin/users?limit=50&search=${encodeURIComponent(q)}`;
       const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error(await res.text());
+      const ct = res.headers.get("content-type") || "";
+
+      if (!res.ok) {
+        let msg = "Failed to load users.";
+        if (ct.includes("application/json")) {
+          try {
+            const j = await res.json();
+            msg = (j && (j.message || j.error)) || msg;
+          } catch {
+            // ignore
+          }
+        } else {
+          // Avoid dumping HTML into the UI; keep details in console.
+          const txt = await res.text();
+          console.error("Admin users error response (truncated):", txt.slice(0, 600));
+        }
+        throw new Error(msg);
+      }
+
       const data = (await res.json()) as AdminUserRow[];
-      setRows(data);
+      setRows(Array.isArray(data) ? data : []);
     } catch (e: any) {
-      setError(e?.message || "Failed to load users");
+      setError(e?.message || "Failed to load users.");
     } finally {
       setLoading(false);
     }
@@ -72,12 +92,23 @@ const AdminUsers: React.FC = () => {
         headers,
         body: JSON.stringify(patch),
       });
-      if (!res.ok) throw new Error(await res.text());
-      // no need to refetch; optimistic is fine
+
+      const ct = res.headers.get("content-type") || "";
+      if (!res.ok) {
+        let msg = "Update failed.";
+        if (ct.includes("application/json")) {
+          try {
+            const j = await res.json();
+            msg = (j && (j.message || j.error)) || msg;
+          } catch {}
+        } else {
+          console.error("Admin user update error (non-JSON).");
+        }
+        throw new Error(msg);
+      }
     } catch (e: any) {
-      setError(e?.message || "Update failed");
-      // reload to restore truth
-      load();
+      setError(e?.message || "Update failed.");
+      load(); // revert to server truth
     }
   }
 
@@ -89,6 +120,7 @@ const AdminUsers: React.FC = () => {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && load()}
             placeholder="Search by email or name"
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100"
           />
@@ -103,7 +135,11 @@ const AdminUsers: React.FC = () => {
         </button>
       </div>
 
-      {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
+      {error && (
+        <div className="text-sm text-red-600 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
         <table className="min-w-full text-sm">
@@ -121,11 +157,11 @@ const AdminUsers: React.FC = () => {
             {rows.map((u) => (
               <tr key={u.id} className="text-gray-900 dark:text-gray-100">
                 <td className="px-3 py-2">
-                  <div className="font-medium">{u.email}</div>
+                  <div className="font-medium break-all">{u.email}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">{u.name || "—"}</div>
                 </td>
                 <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                  {new Date(u.created_at).toLocaleString()}
+                  {u.created_at ? new Date(u.created_at).toLocaleString() : "—"}
                 </td>
                 <td className="px-3 py-2">{currency(u.balance_cents || 0)}</td>
                 <td className="px-3 py-2">{u.active_subscriptions ?? 0}</td>
@@ -166,7 +202,7 @@ const AdminUsers: React.FC = () => {
                   No users found.
                 </td>
               </tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>
