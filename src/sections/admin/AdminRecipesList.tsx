@@ -26,20 +26,24 @@ const AdminRecipesList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Fallback to localStorage so first load can work even if context isn't ready yet
+  const authToken = token || localStorage.getItem("auth:token") || "";
+
   const headers = useMemo(
     () => ({
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${authToken}`,
       "content-type": "application/json",
     }),
-    [token]
+    [authToken]
   );
 
   async function load() {
-    if (!token) return; // wait for auth
+    if (!authToken) return; // wait until we have *some* token
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch(`/api/admin/recipes?limit=200&search=${encodeURIComponent(q)}`, { headers });
+      const url = `/api/admin/recipes?limit=200&search=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(await res.text());
       const data = (await res.json()) as Row[];
       setRows(data);
@@ -50,19 +54,28 @@ const AdminRecipesList: React.FC = () => {
     }
   }
 
-  // Auto-load when token becomes available
-  useEffect(() => { if (token) load(); }, [token]);
-
-  // Debounced search
+  // 1) Load once on mount (uses localStorage fallback)
   useEffect(() => {
-    if (!token) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 2) Load again when context token finally arrives
+  useEffect(() => {
+    if (token) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // 3) Debounced search
+  useEffect(() => {
+    if (!authToken) return;
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, token]);
+  }, [q, authToken]);
 
   async function patch(id: string, body: Partial<Pick<Row, "is_public" | "published" | "title" | "category" | "description" | "image_url">>) {
-    if (!token) return;
+    if (!authToken) return;
     try {
       const res = await fetch(`/api/admin/recipes/${id}`, {
         method: "PATCH",
@@ -78,7 +91,7 @@ const AdminRecipesList: React.FC = () => {
   }
 
   async function del(id: string) {
-    if (!token) return;
+    if (!authToken) return;
     if (!confirm("Delete this recipe?")) return;
     try {
       const res = await fetch(`/api/admin/recipes/${id}`, { method: "DELETE", headers });
@@ -97,7 +110,7 @@ const AdminRecipesList: React.FC = () => {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search recipes..."
+            placeholder="Search recipes…"
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100"
           />
         </div>
@@ -167,7 +180,7 @@ const AdminRecipesList: React.FC = () => {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && !loading && (
+            {rows.length === 0 && !loading && !err && (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-center text-gray-600 dark:text-gray-400">
                   No recipes found.
