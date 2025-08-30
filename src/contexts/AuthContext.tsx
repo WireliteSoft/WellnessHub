@@ -1,10 +1,7 @@
-import React, { createContext, useContext, useMemo } from "react";
-import { useLocalStorage } from "../hooks/useLocalStorage";
-import type { User } from "../types";
+import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
 
-type AuthUser = Pick<User, "id" | "name" | "email">;
-
-type AuthContextType = {
+type AuthUser = { id: string; name: string | null; email: string; is_admin?: number|boolean; is_nutritionist?: number|boolean };
+type Ctx = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -12,30 +9,58 @@ type AuthContextType = {
   logout: () => void;
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<Ctx | null>(null);
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [user, setUser] = useLocalStorage<AuthUser | null>("auth:user", null);
-  const [, setToken] = useLocalStorage<string | null>("auth:token", null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
-  const value = useMemo<AuthContextType>(() => ({
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth:user");
+      const u = raw ? JSON.parse(raw) : null;
+      if (u?.id) setUser(u);
+    } catch {}
+  }, []);
+
+  async function login(email: string, password: string) {
+    const r = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const { token, user } = await r.json();
+    localStorage.setItem("auth:token", token);
+    localStorage.setItem("auth:user", JSON.stringify(user));
+    setUser(user);
+  }
+
+  async function signup(name: string, email: string, password: string) {
+    const r = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, email, password })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const { token, user } = await r.json();
+    localStorage.setItem("auth:token", token);
+    localStorage.setItem("auth:user", JSON.stringify(user));
+    setUser(user);
+  }
+
+  function logout() {
+    const t = localStorage.getItem("auth:token");
+    if (t) fetch("/api/auth/logout", { method: "POST", headers: { Authorization: "Bearer " + t } }).catch(() => {});
+    localStorage.removeItem("auth:token");
+    localStorage.removeItem("auth:user");
+    setUser(null);
+  }
+
+  const value = useMemo<Ctx>(() => ({
     user,
-    isAuthenticated: !!user,
-    login: async (email, _password) => {
-      // fake auth — replace with API later
-      const name = email.split("@")[0];
-      setUser({ id: String(Date.now()), name, email });
-      setToken("dev-token");
-    },
-    signup: async (name, email, _password) => {
-      setUser({ id: String(Date.now()), name, email });
-      setToken("dev-token");
-    },
-    logout: () => {
-      setUser(null);
-      setToken(null);
-    }
-  }), [user, setUser, setToken]);
+    isAuthenticated: !!user?.id,
+    login, signup, logout
+  }), [user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

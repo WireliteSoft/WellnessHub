@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dumbbell, Clock, Zap, Heart, Play, Plus, Edit, Trash2, Save, X } from 'lucide-react';
 import { Exercise } from '../types';
 import WorkoutTimer from './WorkoutTimer';
@@ -10,6 +10,9 @@ const ExerciseSection: React.FC = () => {
   const [editingExercise, setEditingExercise] = useState<string | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<Exercise | null>(null);
   const [completedWorkouts, setCompletedWorkouts] = useState<string[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [newExercise, setNewExercise] = useState({
     name: '',
     type: 'cardio' as const,
@@ -20,6 +23,44 @@ const ExerciseSection: React.FC = () => {
     description: ''
   });
 
+  function authHeaders() {
+    const t = typeof window !== 'undefined' ? localStorage.getItem('auth:token') : null;
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }
+
+  // Map D1 workout row -> your Exercise UI shape
+  function mapServerWorkout(row: any): Exercise {
+    return {
+      id: row.id,
+      name: row.name ?? 'Untitled',
+      type: (row.type as Exercise['type']) || 'cardio',
+      duration: Number(row.duration_min ?? 0),
+      intensity: (row.intensity as Exercise['intensity']) || 'moderate',
+      description: row.notes ?? '',
+      // not stored server-side yet; default for UI
+      diabeticSafe: true,
+      bestTime: 'anytime'
+    };
+  }
+
+  // Initial load from API
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoadError(null);
+        const res = await fetch('/api/workouts', { headers: { ...authHeaders() } });
+        if (!res.ok) throw new Error(`GET /api/workouts ${res.status}`);
+        const rows = await res.json();
+        const mapped = Array.isArray(rows) ? rows.map(mapServerWorkout) : [];
+        setExercises(mapped);
+      } catch (e: any) {
+        console.error(e);
+        setLoadError('Failed to load workouts.');
+        setExercises([]); // fail closed
+      }
+    })();
+  }, []);
+
   const types = [
     { id: 'all', label: 'All Types', icon: Dumbbell },
     { id: 'cardio', label: 'Cardio', icon: Heart },
@@ -28,52 +69,72 @@ const ExerciseSection: React.FC = () => {
     { id: 'balance', label: 'Balance', icon: Clock }
   ];
 
-  const filteredExercises = selectedType === 'all' 
-    ? exercises 
+  const filteredExercises = selectedType === 'all'
+    ? exercises
     : exercises.filter(exercise => exercise.type === selectedType);
 
-  const handleCreateExercise = () => {
-    const exercise: Exercise = {
-      id: Date.now().toString(),
-      ...newExercise
-    };
-    setExercises([...exercises, exercise]);
-    setNewExercise({
-      name: '',
-      type: 'cardio',
-      duration: 30,
-      intensity: 'moderate',
-      diabeticSafe: true,
-      bestTime: 'anytime',
-      description: ''
-    });
-    setShowCreateWorkout(false);
+  // Create -> POST /api/workouts then update local list
+  const handleCreateExercise = async () => {
+    try {
+      setCreating(true);
+      const res = await fetch('/api/workouts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          name: newExercise.name,
+          type: newExercise.type,
+          duration_min: newExercise.duration,
+          intensity: newExercise.intensity,
+          // stash UI-only bits inside notes for now (optional)
+          notes: newExercise.description
+        })
+      });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => '');
+        throw new Error(msg || `POST /api/workouts ${res.status}`);
+      }
+      const { id } = await res.json();
+
+      const created: Exercise = {
+        id,
+        ...newExercise
+      };
+      setExercises([created, ...exercises]);
+
+      setNewExercise({
+        name: '',
+        type: 'cardio',
+        duration: 30,
+        intensity: 'moderate',
+        diabeticSafe: true,
+        bestTime: 'anytime',
+        description: ''
+      });
+      setShowCreateWorkout(false);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to create workout.');
+    } finally {
+      setCreating(false);
+    }
   };
 
+  // Local-only until you add PUT /api/workouts/:id
   const handleUpdateExercise = (id: string, updatedExercise: Partial<Exercise>) => {
-    setExercises(exercises.map(exercise => 
+    setExercises(exercises.map(exercise =>
       exercise.id === id ? { ...exercise, ...updatedExercise } : exercise
     ));
     setEditingExercise(null);
   };
 
+  // Local-only until you add DELETE /api/workouts/:id
   const handleDeleteExercise = (id: string) => {
     setExercises(exercises.filter(exercise => exercise.id !== id));
   };
 
-  const handleStartWorkout = (exercise: Exercise) => {
-    setActiveWorkout(exercise);
-  };
-
-  const handleCompleteWorkout = () => {
-    if (activeWorkout) {
-      setCompletedWorkouts([...completedWorkouts, activeWorkout.id]);
-    }
-  };
-
-  const handleCloseWorkout = () => {
-    setActiveWorkout(null);
-  };
+  const handleStartWorkout = (exercise: Exercise) => setActiveWorkout(exercise);
+  const handleCompleteWorkout = () => { if (activeWorkout) setCompletedWorkouts([...completedWorkouts, activeWorkout.id]); };
+  const handleCloseWorkout = () => setActiveWorkout(null);
 
   const getIntensityColor = (intensity: string) => {
     switch (intensity) {
@@ -109,7 +170,7 @@ const ExerciseSection: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
@@ -134,7 +195,7 @@ const ExerciseSection: React.FC = () => {
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Intensity</label>
@@ -162,7 +223,7 @@ const ExerciseSection: React.FC = () => {
                 </select>
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
               <textarea
@@ -172,7 +233,7 @@ const ExerciseSection: React.FC = () => {
                 rows={2}
               />
             </div>
-            
+
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -186,7 +247,7 @@ const ExerciseSection: React.FC = () => {
               </label>
             </div>
           </div>
-          
+
           <div className="flex justify-end space-x-2 mt-4">
             <button
               onClick={() => setEditingExercise(null)}
@@ -213,6 +274,7 @@ const ExerciseSection: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">My Workouts</h1>
             <p className="text-gray-600 dark:text-gray-300">Create and manage your personalized exercise routines.</p>
+            {loadError && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{loadError}</p>}
           </div>
           <button
             onClick={() => setShowCreateWorkout(true)}
@@ -278,9 +340,9 @@ const ExerciseSection: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    
+
                     <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{exercise.description}</p>
-                    
+
                     <div className="flex justify-between items-center mb-4">
                       <div className="text-center">
                         <p className="text-xl font-bold text-gray-900 dark:text-white">{exercise.duration}</p>
@@ -295,9 +357,9 @@ const ExerciseSection: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     <div className="flex space-x-2">
-                      <button 
+                      <button
                         onClick={() => handleStartWorkout(exercise)}
                         className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2 ${
                           completedWorkouts.includes(exercise.id)
@@ -343,7 +405,7 @@ const ExerciseSection: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Create New Workout</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Exercise Name</label>
@@ -355,7 +417,7 @@ const ExerciseSection: React.FC = () => {
                   placeholder="Enter exercise name"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
@@ -381,7 +443,7 @@ const ExerciseSection: React.FC = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Intensity</label>
@@ -409,7 +471,7 @@ const ExerciseSection: React.FC = () => {
                   </select>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea
@@ -420,7 +482,7 @@ const ExerciseSection: React.FC = () => {
                   placeholder="Describe the exercise and its benefits..."
                 />
               </div>
-              
+
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -434,7 +496,7 @@ const ExerciseSection: React.FC = () => {
                 </label>
               </div>
             </div>
-            
+
             <div className="flex justify-end space-x-3 mt-6">
               <button
                 onClick={() => setShowCreateWorkout(false)}
@@ -444,10 +506,10 @@ const ExerciseSection: React.FC = () => {
               </button>
               <button
                 onClick={handleCreateExercise}
-                disabled={!newExercise.name.trim()}
+                disabled={creating || !newExercise.name.trim()}
                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Workout
+                {creating ? 'Saving…' : 'Create Workout'}
               </button>
             </div>
           </div>
