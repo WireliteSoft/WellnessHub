@@ -20,7 +20,7 @@ export const Landing: React.FC = () => {
         <img
           src="/logo.png"
           alt="WellnessHub logo"
-          className="h-10 w-10 rounded-xl object-contain shadow-sm ring-1 ring-black/10 dark:ring-white/10"
+          className="h-50 w-50 rounded-xl object-contain shadow-sm ring-1 ring-black/10 dark:ring-white/10"
           decoding="async"
         />
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
