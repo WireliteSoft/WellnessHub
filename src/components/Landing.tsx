@@ -9,29 +9,36 @@ export const Landing: React.FC = () => {
   const { isDarkMode } = useTheme();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      {/* top stripe matches app vibe */}
-      <div className="h-1 w-full bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 dark:from-gray-100 dark:via-gray-300 dark:to-gray-100" />
-      <div className="mx-auto max-w-6xl px-6 py-12 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-        {/* Left: Logo + blurb */}
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gray-900 dark:bg-gray-100" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Wellness Tracker
-            </h1>
-          </div>
-          <p className="mt-6 text-gray-700 dark:text-gray-300 leading-relaxed">
-            Track workouts, nutrition, goals, and blood glucose in one place.
-            Privacy-friendly, fast, and designed for real life. Log in to start tracking.
-          </p>
-          <ul className="mt-6 space-y-2 text-sm text-gray-700 dark:text-gray-300">
-            <li>• Exercise planner with built-in timer</li>
-            <li>• Goals with progress tracking</li>
-            <li>• Diabetes readings and trends</li>
-            <li>• Dark mode, responsive UI</li>
-          </ul>
-        </div>
+<div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+  {/* top stripe matches app vibe */}
+  <div className="h-1 w-full bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 dark:from-gray-100 dark:via-gray-300 dark:to-gray-100" />
+  <div className="mx-auto max-w-6xl px-6 py-12 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+    {/* Left: Logo + blurb */}
+    <div>
+      <div className="flex items-center gap-3">
+        {/* replaced placeholder box with logo */}
+        <img
+          src="/logo.png"
+          alt="WellnessHub logo"
+          className="h-10 w-10 rounded-xl object-contain shadow-sm ring-1 ring-black/10 dark:ring-white/10"
+          decoding="async"
+        />
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+          Wellness Tracker
+        </h1>
+      </div>
+      <p className="mt-6 text-gray-700 dark:text-gray-300 leading-relaxed">
+        Track workouts, nutrition, goals, and blood glucose in one place.
+        Privacy-friendly, fast, and designed for real life. Log in to start tracking.
+      </p>
+      <ul className="mt-6 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+        <li>• Exercise planner with built-in timer</li>
+        <li>• Goals with progress tracking</li>
+        <li>• Diabetes readings and trends</li>
+        <li>• Dark mode, responsive UI</li>
+      </ul>
+    </div>
+
 
         {/* Right: Auth card */}
         <div>
