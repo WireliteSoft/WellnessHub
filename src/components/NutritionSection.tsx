@@ -29,7 +29,7 @@ const NutritionSection: React.FC = () => {
   const [filter, setFilter] = useState<MealCategory | "all">("all");
 
   // modal state
-  const [openId, setOpenId] = useState<string | null>(null);
+  the [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RecipeDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -66,14 +66,17 @@ const NutritionSection: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Responsive header: stacks on mobile, row on md+ */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Nutrition</h1>
-        <div className="flex gap-2">
+
+        {/* Filters wrap and scroll when tight */}
+        <div className="flex flex-wrap gap-2 md:justify-end overflow-x-auto">
           {categories.map((c) => (
             <button
               key={c}
               onClick={() => setFilter(c)}
-              className={`px-3 py-1.5 rounded-lg text-sm ${
+              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap ${
                 filter === c
                   ? "bg-gradient-to-r from-emerald-500 to-blue-500 text-white"
                   : "border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -170,13 +173,9 @@ const NutritionSection: React.FC = () => {
               <X className="h-5 w-5" />
             </button>
 
-            {loading && (
-              <div className="p-8 text-center text-gray-600 dark:text-gray-300">Loading…</div>
-            )}
+            {loading && <div className="p-8 text-center text-gray-600 dark:text-gray-300">Loading…</div>}
 
-            {!loading && err && (
-              <div className="p-8 text-center text-red-600 dark:text-red-400">{err}</div>
-            )}
+            {!loading && err && <div className="p-8 text-center text-red-600 dark:text-red-400">{err}</div>}
 
             {!loading && !err && detail && (
               <>
@@ -196,7 +195,7 @@ const NutritionSection: React.FC = () => {
                     <p className="text-sm text-gray-700 dark:text-gray-300">{detail.description}</p>
                   )}
 
-                  {/* macros (full detail has fiber/sugar/sodium too if you want to show) */}
+                  {/* macros (full) */}
                   <div className="grid grid-cols-4 gap-2 text-xs">
                     <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
                       <div className="text-gray-500 dark:text-gray-400">Cal</div>
