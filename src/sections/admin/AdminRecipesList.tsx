@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Search, RefreshCcw, Trash2 } from "lucide-react";
 
@@ -7,11 +7,6 @@ type AdminRecipeRow = {
   title: string;
   category: string;
   description?: string | null;
-  // still returned by the API but not rendered:
-  calories?: number;
-  protein_g?: number;
-  carbs_g?: number;
-  fat_g?: number;
   published: number;
   is_public: number;
   created_at: string;
@@ -23,21 +18,36 @@ const AdminRecipesList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<AdminRecipeRow[]>([]);
+  const retryTimer = useRef<number | null>(null);
 
-  const headers = useMemo(
-    () => ({
-      Authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    }),
-    [token]
-  );
+  // read the freshest token (context OR localStorage fallback)
+  const getToken = () => token || localStorage.getItem("auth:token") || "";
 
-  async function load() {
+  const load = async () => {
+    const t = getToken();
+
+    // if token isn't ready yet, retry shortly
+    if (!t) {
+      if (retryTimer.current) window.clearTimeout(retryTimer.current);
+      retryTimer.current = window.setTimeout(load, 400);
+      return;
+    }
+
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch(`/api/admin/recipes?limit=200&search=${encodeURIComponent(q)}`, { headers });
+      const res = await fetch(`/api/admin/recipes?limit=200&search=${encodeURIComponent(q)}`, {
+        headers: {
+          Authorization: `Bearer ${t}`,
+          "content-type": "application/json",
+        },
+      });
+
+      if (res.status === 401) {
+        throw new Error("Unauthorized (admin only). Please log in again.");
+      }
       if (!res.ok) throw new Error(await res.text());
+
       const data = (await res.json()) as AdminRecipeRow[];
       setRows(data);
     } catch (e: any) {
@@ -45,26 +55,35 @@ const AdminRecipesList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
+    // initial + whenever token changes from empty -> value
     load();
+    return () => {
+      if (retryTimer.current) window.clearTimeout(retryTimer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
-  async function handleDelete(id: string) {
+  const handleRefresh = () => load();
+
+  const handleDelete = async (id: string) => {
+    const t = getToken();
+    if (!t) return;
+
     if (!confirm("Delete this recipe? This cannot be undone.")) return;
     try {
       const res = await fetch(`/api/admin/recipes/${id}`, {
         method: "DELETE",
-        headers,
+        headers: { Authorization: `Bearer ${t}` },
       });
       if (!res.ok) throw new Error(await res.text());
       setRows((prev) => prev.filter((r) => r.id !== id));
     } catch (e: any) {
       alert(e?.message || "Delete failed");
     }
-  }
+  };
 
   return (
     <div className="space-y-4">
@@ -75,12 +94,13 @@ const AdminRecipesList: React.FC = () => {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && load()}
             placeholder="Search recipes…"
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100"
           />
         </div>
         <button
-          onClick={load}
+          onClick={handleRefresh}
           className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
           disabled={loading}
         >
@@ -91,7 +111,6 @@ const AdminRecipesList: React.FC = () => {
 
       {err && <div className="text-sm text-red-600 dark:text-red-400">{err}</div>}
 
-      {/* table */}
       <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
@@ -107,7 +126,7 @@ const AdminRecipesList: React.FC = () => {
               <tr key={r.id} className="text-gray-900 dark:text-gray-100">
                 <td className="px-3 py-2">
                   <div className="font-medium">{r.title}</div>
-                  {/* hide the ID line; keep optional description instead */}
+                  {/* hide ID; show short description if present */}
                   {r.description ? (
                     <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
                       {r.description}
