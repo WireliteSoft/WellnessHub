@@ -25,11 +25,11 @@ type RecipeDetail = {
 const categories: (MealCategory | "all")[] = ["all", "breakfast", "lunch", "dinner", "snack", "other"];
 
 const NutritionSection: React.FC = () => {
-  const { recipes } = useRecipes(); // list view (includes macro summary + tiny ingredient preview)
+  const { recipes } = useRecipes();
   const [filter, setFilter] = useState<MealCategory | "all">("all");
 
-  // modal state
-  the [openId, setOpenId] = useState<string | null>(null);
+  // modal state (fixed the stray "the")
+  const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RecipeDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -66,11 +66,10 @@ const NutritionSection: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Responsive header: stacks on mobile, row on md+ */}
+      {/* Responsive header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Nutrition</h1>
 
-        {/* Filters wrap and scroll when tight */}
         <div className="flex flex-wrap gap-2 md:justify-end overflow-x-auto">
           {categories.map((c) => (
             <button
@@ -137,13 +136,13 @@ const NutritionSection: React.FC = () => {
                   </div>
                 </div>
 
-                {/* ingredients preview (from list) */}
+                {/* ingredients preview (safe read of _ingredientCount) */}
                 {r.ingredients?.length > 0 && (
                   <ul className="mt-4 text-sm text-gray-700 dark:text-gray-300 list-disc pl-5 space-y-1">
                     {r.ingredients.slice(0, 4).map((i) => (
                       <li key={i.id || i.name}>{i.quantity ? `${i.quantity} ` : ""}{i.name}</li>
                     ))}
-                    {r._ingredientCount && r._ingredientCount > 4 && <li>…and more</li>}
+                    {!!(r as any)?._ingredientCount && (r as any)._ingredientCount > 4 && <li>…and more</li>}
                   </ul>
                 )}
 
