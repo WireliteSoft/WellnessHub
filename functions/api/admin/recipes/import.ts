@@ -1,5 +1,5 @@
 // functions/api/admin/recipes/import.ts
-import { requireUser, requireAdmin } from "../../_utils/auth";
+import { requireUser, requireAdmin } from "../../../_utils/auth";
 
 // ---- Helpers ---------------------------------------------------------------
 
