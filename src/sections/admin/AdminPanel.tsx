@@ -1,10 +1,10 @@
 // src/sections/admin/AdminPanel.tsx
 import React, { useState } from "react";
-import { Users, BookOpen, ListOrdered, Globe } from "lucide-react";
-import AdminRecipes from "../../components/admin/AdminRecipes";
-import AdminUsers from "./AdminUsers";
-import AdminRecipesList from "./AdminRecipesList";
-import AdminImportRecipes from "./AdminRecipesImport"; // <-- NEW
+import { Users, BookOpen, ListOrdered, Download } from "lucide-react";
+import AdminRecipes from "../../components/admin/AdminRecipes"; // create form
+import AdminUsers from "./AdminUsers";                          // user mgmt table
+import AdminRecipesList from "./AdminRecipesList";              // recipes list+delete
+import AdminRecipesImport from "./AdminRecipesImport";          // ✅ importer (match filename exactly)
 
 type Tab = "recipes" | "recipesList" | "users" | "import";
 
@@ -14,8 +14,8 @@ const AdminPanel: React.FC = () => {
   const tabs: { id: Tab; label: string; icon: any }[] = [
     { id: "recipes", label: "Add Recipe", icon: BookOpen },
     { id: "recipesList", label: "Manage Recipes", icon: ListOrdered },
+    { id: "import", label: "Import Recipes", icon: Download }, // ✅ new tab
     { id: "users", label: "Users", icon: Users },
-    { id: "import", label: "Import", icon: Globe }, // <-- NEW
   ];
 
   return (
@@ -47,8 +47,8 @@ const AdminPanel: React.FC = () => {
       <div>
         {tab === "recipes" && <AdminRecipes />}
         {tab === "recipesList" && <AdminRecipesList />}
+        {tab === "import" && <AdminRecipesImport />}
         {tab === "users" && <AdminUsers />}
-        {tab === "import" && <AdminRecipesImport />}{/* <-- NEW */}
       </div>
     </div>
   );
