@@ -1,102 +1,96 @@
 // functions/api/admin/recipes/index.ts
 import { requireUser, requireAdmin } from "../../../_utils/auth";
 
-function json(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-function errorJSON(err: any, status = 500) {
-  const message = typeof err?.message === "string" ? err.message : String(err);
-  return json({ error: message }, status);
-}
-function passThroughIfResponse(err: any) {
-  return err instanceof Response ? (err as Response) : null;
-}
-
-export const onRequestGet: PagesFunction = async ({ env, request }) => {
+export const onRequestGet: PagesFunction = async (ctx) => {
   try {
+    const { env, request } = ctx;
     const user = await requireUser(env as any, request);
     requireAdmin(user);
 
     const url = new URL(request.url);
-    const limit = Math.min(parseInt(url.searchParams.get("limit") || "50", 10) || 50, 200);
+    const limit = Math.min(
+      Math.max(parseInt(url.searchParams.get("limit") || "200", 10), 1),
+      500
+    );
     const search = (url.searchParams.get("search") || "").trim();
 
-    const base = `
+    // Minimal, safe query (works even if nutrition/steps/ingredients are empty)
+    const sql = `
       SELECT
-        r.id, r.title, r.category, r.description, r.image_url,
-        r.is_public, r.published, r.created_at, r.updated_at,
-        rn.calories, rn.protein_g, rn.carbs_g, rn.fat_g,
-        (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) AS ingredient_count
+        r.id,
+        r.title,
+        r.category,
+        r.description,
+        r.image_url       AS image,
+        r.is_public,
+        r.published,
+        r.created_at,
+        r.updated_at,
+        COALESCE(rn.calories, 0)  AS calories,
+        COALESCE(rn.protein_g, 0) AS protein_g,
+        COALESCE(rn.carbs_g, 0)   AS carbs_g,
+        COALESCE(rn.fat_g, 0)     AS fat_g,
+        (SELECT COUNT(*) FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) AS ingredient_count,
+        (SELECT COUNT(*) FROM recipe_steps       rs WHERE rs.recipe_id = r.id) AS step_count
       FROM recipes r
       LEFT JOIN recipe_nutrition rn ON rn.recipe_id = r.id
+      WHERE 1=1
+        ${search ? "AND (r.title LIKE ? OR r.category LIKE ?)" : ""}
+      ORDER BY r.created_at DESC
+      LIMIT ?
     `;
-    const where = search ? `WHERE (r.title LIKE ? OR r.description LIKE ?)` : ``;
-    const order = `ORDER BY r.created_at DESC LIMIT ?`;
+    const bind: any[] = [];
+    if (search) {
+      const s = `%${search}%`;
+      bind.push(s, s);
+    }
+    bind.push(limit);
 
-    const stmt = env.DB.prepare([base, where, order].filter(Boolean).join(" "));
-    const bind = search ? [`%${search}%`, `%${search}%`, limit] : [limit];
-    const res = await stmt.bind(...bind).all();
-
-    return json(res.results ?? []);
+    const { results } = await env.DB.prepare(sql).bind(...bind).all();
+    return new Response(JSON.stringify(results ?? []), {
+      headers: { "content-type": "application/json" },
+    });
   } catch (err: any) {
-    const resp = passThroughIfResponse(err);
-    if (resp) return resp;            // ← don’t turn 401 into 500
-    return errorJSON(err, 500);
+    console.error("GET /api/admin/recipes failed:", err);
+    return new Response(
+      JSON.stringify({
+        error: err?.message || "Server error",
+        stack: err?.stack,
+      }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
   }
 };
 
-export const onRequestPatch: PagesFunction = async ({ env, request }) => {
+export const onRequestDelete: PagesFunction = async (ctx) => {
   try {
+    const { env, request } = ctx;
     const user = await requireUser(env as any, request);
     requireAdmin(user);
 
     const url = new URL(request.url);
-    const id = url.pathname.split("/").pop();
-    if (!id) return new Response("Bad request", { status: 400 });
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return new Response(JSON.stringify({ error: "Missing id" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }
 
-    let body: any; try { body = await request.json(); } catch { body = {}; }
-
-    const fields: string[] = [];
-    const values: any[] = [];
-
-    if (typeof body.title === "string")      { fields.push("title=?");       values.push(body.title.trim()); }
-    if (typeof body.category === "string")   { fields.push("category=?");    values.push(body.category); }
-    if (typeof body.description === "string"){ fields.push("description=?"); values.push(body.description); }
-    if (typeof body.image_url === "string")  { fields.push("image_url=?");   values.push(body.image_url); }
-    if (typeof body.is_public === "boolean") { fields.push("is_public=?");   values.push(body.is_public ? 1 : 0); }
-    if (typeof body.published === "boolean") { fields.push("published=?");   values.push(body.published ? 1 : 0); }
-
-    if (fields.length === 0) return new Response("No changes", { status: 400 });
-    fields.push("updated_at = datetime('now')");
-
-    await env.DB.prepare(`UPDATE recipes SET ${fields.join(", ")} WHERE id = ?`)
-      .bind(...values, id).run();
-
-    return json({ ok: true });
+    // cascades will remove ingredients/steps if FK is set ON DELETE CASCADE
+    const res = await env.DB.prepare("DELETE FROM recipes WHERE id = ?").bind(id).run();
+    return new Response(
+      JSON.stringify({ ok: true, changes: (res as any)?.meta?.changes ?? 0 }),
+      { headers: { "content-type": "application/json" } }
+    );
   } catch (err: any) {
-    const resp = passThroughIfResponse(err);
-    if (resp) return resp;
-    return errorJSON(err, 500);
-  }
-};
-
-export const onRequestDelete: PagesFunction = async ({ env, request }) => {
-  try {
-    const user = await requireUser(env as any, request);
-    requireAdmin(user);
-
-    const url = new URL(request.url);
-    const id = url.pathname.split("/").pop();
-    if (!id) return new Response("Bad request", { status: 400 });
-
-    await env.DB.prepare(`DELETE FROM recipes WHERE id = ?`).bind(id).run();
-    return json({ ok: true });
-  } catch (err: any) {
-    const resp = passThroughIfResponse(err);
-    if (resp) return resp;
-    return errorJSON(err, 500);
+    console.error("DELETE /api/admin/recipes failed:", err);
+    return new Response(
+      JSON.stringify({
+        error: err?.message || "Server error",
+        stack: err?.stack,
+      }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
   }
 };
