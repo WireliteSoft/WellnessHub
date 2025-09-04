@@ -1,19 +1,21 @@
 // src/sections/admin/AdminPanel.tsx
 import React, { useState } from "react";
-import { Users, BookOpen, ListOrdered } from "lucide-react";
+import { Users, BookOpen, ListOrdered, Download } from "lucide-react";
 import AdminRecipes from "../../components/admin/AdminRecipes"; // create form
 import AdminUsers from "./AdminUsers";                          // user mgmt table
-import AdminRecipesList from "./AdminRecipesList";              // NEW: recipes list+delete
+import AdminRecipesList from "./AdminRecipesList";              // list+delete
+import AdminImportRecipes from "./AdminImportRecipes";          // NEW: importer UI
 
-type Tab = "recipes" | "recipesList" | "users";
+type Tab = "recipes" | "recipesList" | "import" | "users";
 
 const AdminPanel: React.FC = () => {
   const [tab, setTab] = useState<Tab>("recipes");
 
   const tabs: { id: Tab; label: string; icon: any }[] = [
-    { id: "recipes", label: "Add Recipe", icon: BookOpen },
+    { id: "recipes",     label: "Add Recipe",     icon: BookOpen },
     { id: "recipesList", label: "Manage Recipes", icon: ListOrdered },
-    { id: "users", label: "Users", icon: Users },
+    { id: "import",      label: "Import Recipes", icon: Download },
+    { id: "users",       label: "Users",          icon: Users },
   ];
 
   return (
@@ -43,12 +45,14 @@ const AdminPanel: React.FC = () => {
       </header>
 
       <div>
-        {tab === "recipes" && <AdminRecipes />}
+        {tab === "recipes"     && <AdminRecipes />}
         {tab === "recipesList" && <AdminRecipesList />}
-        {tab === "users" && <AdminUsers />}
+        {tab === "import"      && <AdminImportRecipes />}
+        {tab === "users"       && <AdminUsers />}
       </div>
     </div>
   );
 };
 
 export default AdminPanel;
+
