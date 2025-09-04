@@ -289,4 +289,3 @@ const AdminRecipesList: React.FC = () => {
 };
 
 export default AdminRecipesList;
-
