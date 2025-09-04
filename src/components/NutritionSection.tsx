@@ -160,95 +160,129 @@ const NutritionSection: React.FC = () => {
         </div>
       )}
 
-      {/* Modal */}
-      {openId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="relative max-w-2xl w-full rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl">
-            <button
-              onClick={() => setOpenId(null)}
-              className="absolute top-3 right-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
+{/* Modal */}
+{openId && (
+  <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-black/60">
+    <div className="relative w-full max-w-4xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-2xl">
+      {/* Close */}
+      <button
+        onClick={() => setOpenId(null)}
+        className="absolute top-3 right-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5" />
+      </button>
 
-            {loading && <div className="p-8 text-center text-gray-600 dark:text-gray-300">Loading…</div>}
+      {/* Optional header image */}
+      {detail?.image ? (
+        <img
+          src={detail.image}
+          alt={detail.title}
+          className="w-full max-h-72 object-cover rounded-t-2xl"
+        />
+      ) : null}
 
-            {!loading && err && <div className="p-8 text-center text-red-600 dark:text-red-400">{err}</div>}
+      {/* Scrollable content */}
+      <div className="max-h-[80vh] overflow-y-auto p-6">
+        {loading && (
+          <div className="py-12 text-center text-gray-600 dark:text-gray-300">Loading…</div>
+        )}
 
-            {!loading && !err && detail && (
-              <>
-                {detail.image ? (
-                  <img src={detail.image} alt={detail.title} className="w-full h-56 object-cover rounded-t-2xl" />
-                ) : null}
+        {!loading && err && (
+          <div className="py-12 text-center text-red-600 dark:text-red-400">{err}</div>
+        )}
 
-                <div className="p-6 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{detail.title}</h2>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{detail.category}</div>
-                    </div>
-                  </div>
-
-                  {detail.description && (
-                    <p className="text-sm text-gray-700 dark:text-gray-300">{detail.description}</p>
-                  )}
-
-                  {/* macros (full) */}
-                  <div className="grid grid-cols-4 gap-2 text-xs">
-                    <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
-                      <div className="text-gray-500 dark:text-gray-400">Cal</div>
-                      <div className="font-semibold text-gray-900 dark:text-gray-100">{detail.nutrition.calories}</div>
-                    </div>
-                    <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
-                      <div className="text-gray-500 dark:text-gray-400">P</div>
-                      <div className="font-semibold text-gray-900 dark:text-gray-100">{detail.nutrition.protein}g</div>
-                    </div>
-                    <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
-                      <div className="text-gray-500 dark:text-gray-400">C</div>
-                      <div className="font-semibold text-gray-900 dark:text-gray-100">{detail.nutrition.carbs}g</div>
-                    </div>
-                    <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
-                      <div className="text-gray-500 dark:text-gray-400">F</div>
-                      <div className="font-semibold text-gray-900 dark:text-gray-100">{detail.nutrition.fat}g</div>
-                    </div>
-                  </div>
-
-                  {/* ingredients (full) */}
-                  {detail.ingredients?.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Ingredients</h3>
-                      <ul className="text-sm text-gray-700 dark:text-gray-300 list-disc pl-5 space-y-1">
-                        {detail.ingredients.map((i) => (
-                          <li key={i.id}>
-                            {i.quantity ? <span className="font-medium">{i.quantity}</span> : null}
-                            {i.quantity ? " " : ""}
-                            {i.name}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* steps (full) */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Instructions</h3>
-                    {detail.instructions?.length ? (
-                      <ol className="list-decimal pl-5 space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                        {detail.instructions.map((t, idx) => (
-                          <li key={idx}>{t}</li>
-                        ))}
-                      </ol>
-                    ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No steps yet.</p>
-                    )}
-                  </div>
+        {!loading && !err && detail && (
+          <div className="space-y-5">
+            {/* Title + category */}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">
+                  {detail.title}
+                </h2>
+                <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  {detail.category}
                 </div>
-              </>
+              </div>
+            </div>
+
+            {/* Description */}
+            {detail.description && (
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line break-words">
+                {detail.description}
+              </p>
             )}
+
+            {/* Macros */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                <div className="text-gray-500 dark:text-gray-400">Cal</div>
+                <div className="font-semibold text-gray-900 dark:text-gray-100">
+                  {detail.nutrition.calories}
+                </div>
+              </div>
+              <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                <div className="text-gray-500 dark:text-gray-400">P</div>
+                <div className="font-semibold text-gray-900 dark:text-gray-100">
+                  {detail.nutrition.protein}g
+                </div>
+              </div>
+              <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                <div className="text-gray-500 dark:text-gray-400">C</div>
+                <div className="font-semibold text-gray-900 dark:text-gray-100">
+                  {detail.nutrition.carbs}g
+                </div>
+              </div>
+              <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 px-2 py-1.5">
+                <div className="text-gray-500 dark:text-gray-400">F</div>
+                <div className="font-semibold text-gray-900 dark:text-gray-100">
+                  {detail.nutrition.fat}g
+                </div>
+              </div>
+            </div>
+
+            {/* Ingredients */}
+            {detail.ingredients?.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  Ingredients
+                </h3>
+                <ul className="text-sm text-gray-700 dark:text-gray-300 list-disc pl-5 pr-2 space-y-1 break-words">
+                  {detail.ingredients.map((i) => (
+                    <li key={i.id}>
+                      {i.quantity ? <span className="font-medium">{i.quantity}</span> : null}
+                      {i.quantity ? " " : ""}
+                      {i.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Steps */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                Instructions
+              </h3>
+              {detail.instructions?.length ? (
+                <ol className="list-decimal pl-5 pr-2 space-y-2 text-sm text-gray-700 dark:text-gray-300 break-words">
+                  {detail.instructions.map((t, idx) => (
+                    <li key={idx} className="whitespace-pre-line">
+                      {t}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No steps yet.</p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 };
