@@ -1,262 +1,240 @@
 // functions/api/admin/recipes/import.ts
-// POST /api/admin/recipes/import
-// Body shapes supported:
-// 1) { url: "https://www.themealdb.com/meal/52874", publish?: boolean, public?: boolean, category?: "breakfast"|"lunch"|"dinner"|"snack"|"other" }
-// 2) { source: "mealdb", id: "52874", publish?: boolean, public?: boolean, category?: ... }
-//
-// Requires: tables recipes, recipe_ingredients, recipe_steps, recipe_nutrition (optional), and columns
-// recipes.external_source, recipes.external_id + unique index uq_recipes_external(external_source, external_id)
+import { requireUser, requireAdmin } from "../../_utils/auth";
 
-import { requireUser, requireAdmin } from "../../../_utils/auth";
+// ---- Helpers ---------------------------------------------------------------
 
-type MealCategory = "breakfast" | "lunch" | "dinner" | "snack" | "other";
-
-type NormalizedRecipe = {
-  external_source: string;       // e.g. 'themealdb'
-  external_id: string;           // e.g. '52874'
-  title: string;
-  category: MealCategory;
-  description?: string;
-  image?: string | null;
-  ingredients: { name: string; quantity?: string | null }[];
-  steps: string[];
+type Meal = {
+  idMeal: string;
+  strMeal: string;
+  strCategory?: string | null;
+  strInstructions?: string | null;
+  strMealThumb?: string | null;
+  // ingredients/measures 1..20
+  [k: `strIngredient${number}`]: string | undefined;
+  [k: `strMeasure${number}`]: string | undefined;
 };
 
-const MEALDB_LOOKUP = "https://www.themealdb.com/api/json/v1/1/lookup.php?i=";
-
-function mapCategoryGuess(input?: string): MealCategory {
-  if (!input) return "other";
-  const s = input.toLowerCase();
+function mapCategory(raw?: string | null): "breakfast" | "lunch" | "dinner" | "snack" | "other" {
+  const s = (raw || "").toLowerCase();
   if (s.includes("breakfast")) return "breakfast";
-  if (s.includes("lunch")) return "lunch";
-  if (s.includes("dinner") || s.includes("main")) return "dinner";
   if (s.includes("snack")) return "snack";
-  return "other";
+  // MealDB categories are things like "Beef", "Chicken", "Seafood", "Pasta"... not our enum.
+  // Default most to "dinner" so they pass your CHECK constraint.
+  return "dinner";
 }
 
-function extractMealDbIdFromUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-    if (!u.hostname.includes("themealdb.com")) return null;
-    // patterns that may appear:
-    // /meal/<id> OR /api/json/v1/1/lookup.php?i=<id>
-    const m = u.pathname.match(/\/meal\/(\d+)/);
-    if (m?.[1]) return m[1];
-    const id = u.searchParams.get("i");
-    if (id) return id;
-    return null;
-  } catch {
-    return null;
-  }
-}
+function splitInstructions(text?: string | null): string[] {
+  if (!text) return [];
+  // Split on blank lines or numbered steps, then trim empties
+  const parts = text
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n|^\s*\d+[\).\s-]+/gm)
+    .map(s => s.trim())
+    .filter(Boolean);
 
-async function fetchMealDbById(id: string): Promise<NormalizedRecipe | null> {
-  const r = await fetch(MEALDB_LOOKUP + encodeURIComponent(id));
-  if (!r.ok) throw new Error(`MealDB lookup failed: ${r.status}`);
-  const json = await r.json() as any;
-  const meal = json?.meals?.[0];
-  if (!meal) return null;
-
-  // Collect up to 20 ingredient+measure pairs
-  const ingredients: { name: string; quantity?: string | null }[] = [];
-  for (let i = 1; i <= 20; i++) {
-    const name = (meal[`strIngredient${i}`] || "").trim();
-    const qty = (meal[`strMeasure${i}`] || "").trim();
-    if (!name) continue;
-    ingredients.push({ name, quantity: qty || null });
-  }
-
-  // Split instructions by line breaks / numbered lines
-  let steps: string[] = [];
-  const instr: string = meal.strInstructions || "";
-  if (instr) {
-    steps = instr
-      .split(/\r?\n+/)
-      .map(s => s.replace(/^\d+[\).\s-]+/, "").trim())
+  // Fallback: split by single newlines if we ended up with only one big chunk
+  if (parts.length <= 1) {
+    const byLine = text
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map(s => s.trim())
       .filter(Boolean);
+    if (byLine.length > 1) return byLine;
   }
-
-  return {
-    external_source: "themealdb",
-    external_id: String(meal.idMeal),
-    title: meal.strMeal || "Untitled",
-    category: mapCategoryGuess(meal.strCategory || meal.strArea || ""),
-    description: meal.strArea ? `${meal.strArea} cuisine` : undefined,
-    image: meal.strMealThumb || null,
-    ingredients,
-    steps
-  };
+  return parts;
 }
 
-export const onRequestPost: PagesFunction = async ({ env, request }) => {
-  // --- Auth guard (must be admin) ---
-  const user = await requireUser(env as any, request);
-  requireAdmin(user);
-
-  // --- Parse input ---
-  type In =
-    | { url: string; publish?: boolean; public?: boolean; category?: MealCategory }
-    | { source: "mealdb"; id: string; publish?: boolean; public?: boolean; category?: MealCategory };
-
-  let body: In | null = null;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response("Invalid JSON", { status: 400 });
+function collectIngredients(meal: Meal): Array<{ name: string; quantity?: string; position: number }> {
+  const out: Array<{ name: string; quantity?: string; position: number }> = [];
+  for (let i = 1; i <= 20; i++) {
+    const name = (meal as any)[`strIngredient${i}`]?.trim();
+    const qty = (meal as any)[`strMeasure${i}`]?.trim();
+    if (!name) continue;
+    out.push({ name, quantity: qty || undefined, position: out.length });
   }
+  return out;
+}
 
-  // --- Normalize from supported sources ---
-  let normalized: NormalizedRecipe | null = null;
+async function insertOrUpdateRecipe(env: any, userId: string, meal: Meal) {
+  const externalSource = "mealdb";
+  const externalId = meal.idMeal;
+  const title = meal.strMeal?.trim() || "Untitled";
+  const category = mapCategory(meal.strCategory);
+  const description = meal.strInstructions?.split(/\r?\n/)[0]?.trim() ?? null;
+  const image = meal.strMealThumb || null;
+  const ingredients = collectIngredients(meal);
+  const steps = splitInstructions(meal.strInstructions);
 
-  // A) MealDB via explicit source/id
-  if (body && "source" in body && body.source === "mealdb" && body.id) {
-    normalized = await fetchMealDbById(body.id);
-    if (!normalized) return new Response("Not found on TheMealDB", { status: 404 });
-  }
-
-  // B) URL form; try to recognize TheMealDB
-  if (!normalized && body && "url" in body && body.url) {
-    const id = extractMealDbIdFromUrl(body.url);
-    if (id) {
-      normalized = await fetchMealDbById(id);
-      if (!normalized) return new Response("Not found on TheMealDB", { status: 404 });
-    } else {
-      // Future: add scrapers for other sources here (AllRecipes, BBC GoodFood, etc.)
-      // For now, bail out with a helpful message.
-      return new Response("Only TheMealDB URLs are supported right now.", { status: 400 });
-    }
-  }
-
-  if (!normalized) {
-    return new Response("Missing url or (source,id).", { status: 400 });
-  }
-
-  // Allow caller to override category/publication flags
-  const is_public = "public" in (body as any) ? ((body as any).public ? 1 : 0) : 1;
-  const published = "publish" in (body as any) ? ((body as any).publish ? 1 : 0) : 1;
-  const finalCategory = ("category" in (body as any) && (body as any).category)
-    ? (body as any).category as MealCategory
-    : normalized.category;
-
-  // --- Upsert logic based on external_source/external_id ---
-  // 1) Look up existing by external keys
-  const sel = await env.DB
+  // Does it already exist?
+  const existing = await env.DB
     .prepare(
       "SELECT id FROM recipes WHERE external_source=? AND external_id=? LIMIT 1"
     )
-    .bind(normalized.external_source, normalized.external_id)
+    .bind(externalSource, externalId)
     .first<{ id: string }>();
 
-  // We'll perform a small transaction so ingredients/steps stay in sync
-  const statements: D1PreparedStatement[] = [];
   const now = new Date().toISOString();
 
-  let recipeId = sel?.id ?? crypto.randomUUID();
+  if (!existing?.id) {
+    // INSERT new
+    const id = crypto.randomUUID();
 
-  if (sel?.id) {
-    // Update existing core fields
-    statements.push(
-      env.DB.prepare(
-        `UPDATE recipes
-           SET title=?, category=?, description=?, image_url=?, is_public=?, published=?, updated_at=?
-         WHERE id=?`
-      ).bind(
-        normalized.title,
-        finalCategory,
-        normalized.description ?? null,
-        normalized.image ?? null,
-        is_public,
-        published,
-        now,
-        recipeId
-      )
-    );
-    // Clear and replace ingredients + steps
-    statements.push(
-      env.DB.prepare("DELETE FROM recipe_ingredients WHERE recipe_id=?").bind(recipeId),
-      env.DB.prepare("DELETE FROM recipe_steps       WHERE recipe_id=?").bind(recipeId)
-    );
-  } else {
-    // Fresh insert
-    statements.push(
+    const ops = [
       env.DB.prepare(
         `INSERT INTO recipes
-           (id, title, category, description, image_url, created_by,
-            is_public, published, external_source, external_id, created_at, updated_at)
-         VALUES (?,?,?,?,?,?, ?,?,?,?, datetime('now'), datetime('now'))`
-      ).bind(
-        recipeId,
-        normalized.title,
-        finalCategory,
-        normalized.description ?? null,
-        normalized.image ?? null,
-        user.id,
-        is_public,
-        published,
-        normalized.external_source,
-        normalized.external_id
-      )
-    );
-  }
+         (id, title, category, description, image_url, created_by, is_public, published,
+          external_source, external_id, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,1,1,?,?,?,?)`
+      ).bind(id, title, category, description, image, userId, externalSource, externalId, now, now),
 
-  // Ingredients
-  normalized.ingredients.forEach((ing, i) => {
-    if (!ing.name?.trim()) return;
-    statements.push(
-      env.DB
+      // nutrition: unknown from MealDB → zeros, so the UI still has fields
+      env.DB.prepare(
+        `INSERT INTO recipe_nutrition
+         (recipe_id, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)
+         VALUES (?,?,?,?,?,?,?,?)`
+      ).bind(id, 0, 0, 0, 0, 0, 0, 0),
+    ];
+
+    // ingredients
+    for (const ing of ingredients) {
+      ops.push(
+        env.DB.prepare(
+          `INSERT INTO recipe_ingredients (id, recipe_id, name, quantity, position)
+           VALUES (?,?,?,?,?)`
+        ).bind(crypto.randomUUID(), id, ing.name, ing.quantity ?? null, ing.position)
+      );
+    }
+
+    // steps
+    steps.forEach((text, i) => {
+      ops.push(
+        env.DB.prepare(
+          `INSERT INTO recipe_steps (id, recipe_id, step_no, text)
+           VALUES (?,?,?,?)`
+        ).bind(crypto.randomUUID(), id, i + 1, text)
+      );
+    });
+
+    await env.DB.batch(ops);
+    return { id, action: "inserted" as const };
+  } else {
+    const rid = existing.id;
+
+    // UPDATE recipe + replace ingredients/steps in a TX
+    await env.DB.exec("BEGIN");
+    try {
+      await env.DB
         .prepare(
-          "INSERT INTO recipe_ingredients (id, recipe_id, name, quantity, position) VALUES (?,?,?,?,?)"
+          `UPDATE recipes
+           SET title=?, category=?, description=?, image_url=?, updated_at=?
+           WHERE id=?`
         )
-        .bind(crypto.randomUUID(), recipeId, ing.name.trim(), ing.quantity ?? null, i + 1)
-    );
-  });
+        .bind(title, category, description, image, now, rid)
+        .run();
 
-  // Steps
-  normalized.steps.forEach((txt, i) => {
-    const t = txt.trim();
-    if (!t) return;
-    statements.push(
-      env.DB
-        .prepare("INSERT INTO recipe_steps (id, recipe_id, step_no, text) VALUES (?,?,?,?)")
-        .bind(crypto.randomUUID(), recipeId, i + 1, t)
-    );
-  });
+      await env.DB
+        .prepare(`DELETE FROM recipe_ingredients WHERE recipe_id=?`)
+        .bind(rid)
+        .run();
 
-  // (Optional) ensure a nutrition row exists with zeros (your list query COALESCEs, so this is optional)
-  statements.push(
-    env.DB
-      .prepare(
-        `INSERT OR IGNORE INTO recipe_nutrition
-           (recipe_id, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)
-         VALUES (?,0,0,0,0,0,0,0)`
-      )
-      .bind(recipeId)
-  );
+      await env.DB
+        .prepare(`DELETE FROM recipe_steps WHERE recipe_id=?`)
+        .bind(rid)
+        .run();
 
-  // Execute as a mini-transaction
-  try {
-    await env.DB.batch([
-      env.DB.prepare("BEGIN"),
-      ...statements,
-      env.DB.prepare("COMMIT"),
-    ]);
-  } catch (e) {
-    // Try to rollback on error
-    try { await env.DB.batch([env.DB.prepare("ROLLBACK")]); } catch {}
-    const msg = (e as any)?.message || "Import failed";
-    return new Response(msg, { status: 500 });
+      const ops: D1PreparedStatement[] = [];
+      for (const ing of ingredients) {
+        ops.push(
+          env.DB.prepare(
+            `INSERT INTO recipe_ingredients (id, recipe_id, name, quantity, position)
+             VALUES (?,?,?,?,?)`
+          ).bind(crypto.randomUUID(), rid, ing.name, ing.quantity ?? null, ing.position)
+        );
+      }
+      steps.forEach((text, i) => {
+        ops.push(
+          env.DB.prepare(
+            `INSERT INTO recipe_steps (id, recipe_id, step_no, text)
+             VALUES (?,?,?,?)`
+          ).bind(crypto.randomUUID(), rid, i + 1, text)
+        );
+      });
+      await env.DB.batch(ops);
+
+      await env.DB.exec("COMMIT");
+      return { id: rid, action: "updated" as const };
+    } catch (e) {
+      await env.DB.exec("ROLLBACK");
+      throw e;
+    }
   }
+}
 
-  // Return minimal info to the client
-  return new Response(
-    JSON.stringify({
-      id: recipeId,
-      title: normalized.title,
-      category: finalCategory,
-      source: normalized.external_source,
-      external_id: normalized.external_id,
-      updated: !!sel?.id
-    }),
-    { headers: { "content-type": "application/json" } }
-  );
+// ---- Handler ---------------------------------------------------------------
+
+export const onRequestPost: PagesFunction = async ({ env, request }) => {
+  try {
+    const user = await requireUser(env as any, request);
+    requireAdmin(user);
+
+    const { url, urls, limit } = (await request.json().catch(() => ({}))) as {
+      url?: string;
+      urls?: string[];
+      limit?: number;
+    };
+
+    const targets = (urls && urls.length ? urls : url ? [url] : []).slice(0, 25);
+    if (targets.length === 0) {
+      return new Response(JSON.stringify({ error: "Provide 'url' or 'urls'." }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    let succeeded = 0;
+    let failed = 0;
+    let inserted = 0;
+    let updated = 0;
+    const details: Array<{ url: string; ok: boolean; count?: number; error?: string }> = [];
+
+    for (const u of targets) {
+      try {
+        const resp = await fetch(u, { cf: { cacheTtl: 0 } });
+        if (!resp.ok) throw new Error(`upstream ${resp.status}`);
+        const data = await resp.json();
+
+        // MealDB returns { meals: Meal[] | null }
+        const meals: Meal[] = Array.isArray(data?.meals) ? data.meals : [];
+        const capped = meals.slice(0, Math.max(1, Math.min(limit ?? meals.length, 50)));
+
+        let thisInserted = 0;
+        let thisUpdated = 0;
+
+        for (const m of capped) {
+          const res = await insertOrUpdateRecipe(env, user.id, m);
+          if (res.action === "inserted") thisInserted++;
+          else thisUpdated++;
+        }
+
+        succeeded++;
+        inserted += thisInserted;
+        updated += thisUpdated;
+        details.push({ url: u, ok: true, count: capped.length });
+      } catch (e: any) {
+        failed++;
+        details.push({ url: u, ok: false, error: e?.message || "import failed" });
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ ok: true, succeeded, failed, inserted, updated, details }),
+      { headers: { "content-type": "application/json" } }
+    );
+  } catch (e: any) {
+    // Return error JSON instead of a Cloudflare 1101 HTML page
+    return new Response(JSON.stringify({ error: e?.message || "Server error" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
 };
