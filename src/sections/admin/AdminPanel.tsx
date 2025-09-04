@@ -1,10 +1,11 @@
 // src/sections/admin/AdminPanel.tsx
 import React, { useState } from "react";
 import { Users, BookOpen, ListOrdered, Download } from "lucide-react";
-import AdminRecipes from "../../components/admin/AdminRecipes"; // create form
-import AdminUsers from "./AdminUsers";                          // user mgmt table
-import AdminRecipesList from "./AdminRecipesList";              // recipes list+delete
-import AdminRecipesImport from "./AdminRecipesImport";          // ✅ importer (match filename exactly)
+
+import AdminRecipes from "../../components/admin/AdminRecipes"; // create form (existing)
+import AdminUsers from "./AdminUsers";                         // user mgmt table (existing)
+import AdminRecipesList from "./AdminRecipesList";             // recipes list+delete (existing)
+import AdminRecipesImport from "./AdminRecipesImport";         // ✅ correct file name & path
 
 type Tab = "recipes" | "recipesList" | "users" | "import";
 
@@ -12,10 +13,10 @@ const AdminPanel: React.FC = () => {
   const [tab, setTab] = useState<Tab>("recipes");
 
   const tabs: { id: Tab; label: string; icon: any }[] = [
-    { id: "recipes", label: "Add Recipe", icon: BookOpen },
-    { id: "recipesList", label: "Manage Recipes", icon: ListOrdered },
-    { id: "import", label: "Import Recipes", icon: Download }, // ✅ new tab
-    { id: "users", label: "Users", icon: Users },
+    { id: "recipes",     label: "Add Recipe",      icon: BookOpen },
+    { id: "recipesList", label: "Manage Recipes",  icon: ListOrdered },
+    { id: "users",       label: "Users",           icon: Users },
+    { id: "import",      label: "Import Recipes",  icon: Download }, // ✅ new tab
   ];
 
   return (
@@ -47,8 +48,8 @@ const AdminPanel: React.FC = () => {
       <div>
         {tab === "recipes" && <AdminRecipes />}
         {tab === "recipesList" && <AdminRecipesList />}
-        {tab === "import" && <AdminRecipesImport />}
         {tab === "users" && <AdminUsers />}
+        {tab === "import" && <AdminRecipesImport />} {/* ✅ importer */}
       </div>
     </div>
   );
