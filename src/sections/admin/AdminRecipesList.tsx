@@ -52,12 +52,10 @@ const CATS: Array<RecipeDetail["category"]> = [
   "other",
 ];
 
-// shared field classes (fix dark text + placeholder everywhere)
-const fieldCls =
-  "w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 " +
-  "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 " +
-  "placeholder-gray-400 dark:placeholder-gray-500 " +
-  "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500";
+// neutral button class (ensures readable text in dark mode)
+const btnNeutral =
+  "p-2 rounded-md border border-gray-300 dark:border-gray-700 " +
+  "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800";
 
 const AdminRecipesList: React.FC = () => {
   const { token } = useAuth();
@@ -205,7 +203,10 @@ const AdminRecipesList: React.FC = () => {
     setForm({ ...form, ingredients: next });
   };
 
-  const updateIngredient = (idx: number, patch: Partial<RecipeDetail["ingredients"][number]>) => {
+  const updateIngredient = (
+    idx: number,
+    patch: Partial<RecipeDetail["ingredients"][number]>
+  ) => {
     if (!form) return;
     const next = [...form.ingredients];
     next[idx] = { ...next[idx], ...patch };
@@ -218,14 +219,15 @@ const AdminRecipesList: React.FC = () => {
     const j = idx + dir;
     if (j < 0 || j >= next.length) return;
     [next[idx], next[j]] = [next[j], next[idx]];
-    // re-number positions
     for (let i = 0; i < next.length; i++) next[i].position = i;
     setForm({ ...form, ingredients: next });
   };
 
   const removeIngredient = (idx: number) => {
     if (!form) return;
-    const next = form.ingredients.filter((_, i) => i !== idx).map((x, i) => ({ ...x, position: i }));
+    const next = form.ingredients
+      .filter((_, i) => i !== idx)
+      .map((x, i) => ({ ...x, position: i }));
     setForm({ ...form, ingredients: next });
   };
 
@@ -267,7 +269,6 @@ const AdminRecipesList: React.FC = () => {
     setSaving(true);
     setErr(null);
     try {
-      // convert detail nutrition (protein/carbs/fat) -> API shape (_g keys)
       const payload = {
         title: form.title?.trim(),
         category: form.category,
@@ -290,7 +291,9 @@ const AdminRecipesList: React.FC = () => {
           quantity: x.quantity || null,
           position: i,
         })),
-        instructions: (form.instructions || []).map((s) => (s || "").trim()).filter(Boolean),
+        instructions: (form.instructions || [])
+          .map((s) => (s || "").trim())
+          .filter(Boolean),
       };
 
       // preferred
@@ -311,7 +314,6 @@ const AdminRecipesList: React.FC = () => {
 
       if (!res.ok) throw new Error(await res.text());
 
-      // reflect updated basics in the table
       setRows((prev) =>
         prev.map((r) =>
           r.id === editingId
@@ -392,7 +394,7 @@ const AdminRecipesList: React.FC = () => {
                   <div className="inline-flex gap-2">
                     <button
                       onClick={() => openEdit(r)}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
                       title="Edit"
                     >
                       <Edit2 className="h-4 w-4" /> Edit
@@ -424,8 +426,9 @@ const AdminRecipesList: React.FC = () => {
       {/* Full Edit Modal */}
       {editingId && form && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl">
-            <div className="flex items-start justify-between p-5 border-b border-gray-200 dark:border-gray-800">
+          <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl flex flex-col max-h-[90vh]">
+            {/* header (fixed) */}
+            <div className="flex items-start justify-between p-5 border-b border-gray-200 dark:border-gray-800 shrink-0">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Recipe</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">ID: {editingId}</p>
@@ -441,7 +444,8 @@ const AdminRecipesList: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-5 max-h-[90vh] overflow-y-auto space-y-6">
+            {/* body (scrolls) */}
+            <div className="p-5 overflow-y-auto grow space-y-6">
               {detailLoading && (
                 <div className="text-sm text-gray-600 dark:text-gray-300">Loading details…</div>
               )}
@@ -456,7 +460,7 @@ const AdminRecipesList: React.FC = () => {
                   <input
                     value={form.title}
                     onChange={(e) => setField("title", e.target.value)}
-                    className={fieldCls}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </label>
                 <label className="text-sm">
@@ -464,7 +468,7 @@ const AdminRecipesList: React.FC = () => {
                   <select
                     value={form.category}
                     onChange={(e) => setField("category", e.target.value as RecipeDetail["category"])}
-                    className={`${fieldCls} capitalize`}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 capitalize"
                   >
                     {CATS.map((c) => (
                       <option key={c} value={c}>
@@ -478,7 +482,7 @@ const AdminRecipesList: React.FC = () => {
                   <input
                     value={form.image || ""}
                     onChange={(e) => setField("image", e.target.value)}
-                    className={fieldCls}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder="https://…"
                   />
                 </label>
@@ -488,7 +492,7 @@ const AdminRecipesList: React.FC = () => {
                     value={form.description || ""}
                     onChange={(e) => setField("description", e.target.value)}
                     rows={3}
-                    className={fieldCls}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </label>
               </div>
@@ -503,7 +507,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.calories ?? 0}
                       onChange={(e) => setNut("calories", Number(e.target.value) || 0)}
-                      className={fieldCls}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                   </label>
                   <label className="text-sm">
@@ -512,7 +516,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.protein ?? 0}
                       onChange={(e) => setNut("protein", Number(e.target.value) || 0)}
-                      className={fieldCls}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                   </label>
                   <label className="text-sm">
@@ -521,7 +525,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.carbs ?? 0}
                       onChange={(e) => setNut("carbs", Number(e.target.value) || 0)}
-                      className={fieldCls}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                   </label>
                   <label className="text-sm">
@@ -530,7 +534,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.fat ?? 0}
                       onChange={(e) => setNut("fat", Number(e.target.value) || 0)}
-                      className={fieldCls}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                   </label>
 
@@ -540,7 +544,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.fiber ?? 0}
                       onChange={(e) => setNut("fiber", Number(e.target.value) || 0)}
-                      className={fieldCls}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                   </label>
                   <label className="text-sm">
@@ -549,7 +553,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.sugar ?? 0}
                       onChange={(e) => setNut("sugar", Number(e.target.value) || 0)}
-                      className={fieldCls}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                   </label>
                   <label className="text-sm">
@@ -558,7 +562,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.sodium ?? 0}
                       onChange={(e) => setNut("sodium", Number(e.target.value) || 0)}
-                      className={fieldCls}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                   </label>
                 </div>
@@ -570,7 +574,7 @@ const AdminRecipesList: React.FC = () => {
                   <h4 className="font-medium text-gray-900 dark:text-gray-100">Ingredients</h4>
                   <button
                     onClick={addIngredient}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm"
                   >
                     <Plus className="h-4 w-4" /> Add Ingredient
                   </button>
@@ -582,25 +586,25 @@ const AdminRecipesList: React.FC = () => {
                         placeholder="Quantity (e.g., 1 cup)"
                         value={ing.quantity || ""}
                         onChange={(e) => updateIngredient(idx, { quantity: e.target.value })}
-                        className={`${fieldCls} col-span-4 text-sm`}
+                        className="col-span-4 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                       />
                       <input
                         placeholder="Ingredient name"
                         value={ing.name}
                         onChange={(e) => updateIngredient(idx, { name: e.target.value })}
-                        className={`${fieldCls} col-span-6 text-sm`}
+                        className="col-span-6 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                       />
                       <div className="col-span-2 flex items-center justify-end gap-1">
                         <button
                           onClick={() => moveIngredient(idx, -1)}
-                          className="p-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          className={btnNeutral}
                           title="Move up"
                         >
                           <ArrowUp className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => moveIngredient(idx, 1)}
-                          className="p-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          className={btnNeutral}
                           title="Move down"
                         >
                           <ArrowDown className="h-4 w-4" />
@@ -627,7 +631,7 @@ const AdminRecipesList: React.FC = () => {
                   <h4 className="font-medium text-gray-900 dark:text-gray-100">Instructions</h4>
                   <button
                     onClick={addStep}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm"
                   >
                     <Plus className="h-4 w-4" /> Add Step
                   </button>
@@ -640,21 +644,21 @@ const AdminRecipesList: React.FC = () => {
                           value={step}
                           onChange={(e) => updateStep(idx, e.target.value)}
                           rows={2}
-                          className={`${fieldCls} text-sm`}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                           placeholder={`Step ${idx + 1}`}
                         />
                       </div>
                       <div className="col-span-2 flex items-center justify-end gap-1">
                         <button
                           onClick={() => moveStep(idx, -1)}
-                          className="p-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          className={btnNeutral}
                           title="Move up"
                         >
                           <ArrowUp className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => moveStep(idx, 1)}
-                          className="p-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          className={btnNeutral}
                           title="Move down"
                         >
                           <ArrowDown className="h-4 w-4" />
@@ -688,7 +692,8 @@ const AdminRecipesList: React.FC = () => {
               </div>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-2">
+            {/* footer (fixed) */}
+            <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-2 shrink-0">
               <button
                 onClick={() => {
                   setEditingId(null);
