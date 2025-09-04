@@ -65,6 +65,29 @@ const AdminRecipesList: React.FC = () => {
   const [rows, setRows] = useState<AdminRecipeRow[]>([]);
   const retryTimer = useRef<number | null>(null);
 
+  // ---- bulk selection state ----
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const allVisibleSelected = rows.length > 0 && rows.every(r => selected.has(r.id));
+  function toggleAllVisible() {
+    setSelected(prev => {
+      if (allVisibleSelected) return new Set();
+      return new Set(rows.map(r => r.id));
+    });
+  }
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  // keep selection sane after list changes
+  useEffect(() => {
+    setSelected(prev => new Set([...prev].filter(id => rows.some(r => r.id === id))));
+  }, [rows]);
+
   // ---- edit modal state (full recipe) ----
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RecipeDetail | null>(null);
@@ -128,9 +151,47 @@ const AdminRecipesList: React.FC = () => {
       });
       if (!res.ok) throw new Error(await res.text());
       setRows((prev) => prev.filter((r) => r.id !== id));
+      setSelected(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     } catch (e: any) {
       alert(e?.message || "Delete failed");
     }
+  };
+
+  // ---------- bulk delete ----------
+  const deleteSelected = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} recipe(s)? This cannot be undone.`)) return;
+
+    setBulkDeleting(true);
+    const t = getToken();
+    const ids = Array.from(selected);
+
+    const results = await Promise.allSettled(
+      ids.map(id =>
+        fetch(`/api/admin/recipes/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${t}` },
+        })
+      )
+    );
+
+    const okIds: string[] = [];
+    const bad: string[] = [];
+    results.forEach((res, i) => {
+      if (res.status === "fulfilled" && res.value.ok) okIds.push(ids[i]);
+      else bad.push(ids[i]);
+    });
+
+    if (okIds.length) {
+      setRows(prev => prev.filter(r => !okIds.includes(r.id)));
+    }
+    setSelected(new Set(bad)); // leave failed ones selected as feedback
+    if (bad.length) alert(`Failed to delete ${bad.length} item(s).`);
+    setBulkDeleting(false);
   };
 
   // ---------- edit open ----------
@@ -360,6 +421,15 @@ const AdminRecipesList: React.FC = () => {
           <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </button>
+        <button
+          onClick={deleteSelected}
+          disabled={selected.size === 0 || bulkDeleting}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-60"
+          title="Delete selected recipes"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete Selected {selected.size ? `(${selected.size})` : ""}
+        </button>
       </div>
 
       {err && <div className="text-sm text-red-600 dark:text-red-400">{err}</div>}
@@ -368,15 +438,35 @@ const AdminRecipesList: React.FC = () => {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
             <tr>
+              <th className="w-8 px-3 py-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={allVisibleSelected}
+                  onChange={toggleAllVisible}
+                  aria-label="Select all"
+                />
+              </th>
               <th className="text-left px-3 py-2">Title</th>
               <th className="text-left px-3 py-2">Category</th>
               <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
 
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
             {rows.map((r) => (
               <tr key={r.id} className="text-gray-900 dark:text-gray-100">
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={selected.has(r.id)}
+                    onChange={() => toggleOne(r.id)}
+                    aria-label={`Select ${r.title}`}
+                    disabled={bulkDeleting}
+                  />
+                </td>
+
                 <td className="px-3 py-2">
                   <div className="font-medium">{r.title}</div>
                   {r.description ? (
@@ -414,7 +504,7 @@ const AdminRecipesList: React.FC = () => {
 
             {rows.length === 0 && !loading && (
               <tr>
-                <td colSpan={3} className="px-3 py-6 text-center text-gray-600 dark:text-gray-400">
+                <td colSpan={4} className="px-3 py-6 text-center text-gray-600 dark:text-gray-400">
                   No recipes found.
                 </td>
               </tr>
