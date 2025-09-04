@@ -52,6 +52,13 @@ const CATS: Array<RecipeDetail["category"]> = [
   "other",
 ];
 
+// shared field classes (fix dark text + placeholder everywhere)
+const fieldCls =
+  "w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 " +
+  "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 " +
+  "placeholder-gray-400 dark:placeholder-gray-500 " +
+  "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500";
+
 const AdminRecipesList: React.FC = () => {
   const { token } = useAuth();
   const [q, setQ] = useState("");
@@ -143,24 +150,26 @@ const AdminRecipesList: React.FC = () => {
       const d = (await res.json()) as RecipeDetail;
 
       // normalize/ensure arrays
-      d.ingredients = Array.isArray(d.ingredients) ? d.ingredients.map((ing, i) => ({
-        id: ing.id || `${d.id}-ing-${i}`,
-        name: ing.name || "",
-        quantity: ing.quantity || "",
-        position: i,
-      })) : [];
+      d.ingredients = Array.isArray(d.ingredients)
+        ? d.ingredients.map((ing, i) => ({
+            id: ing.id || `${d.id}-ing-${i}`,
+            name: ing.name || "",
+            quantity: ing.quantity || "",
+            position: i,
+          }))
+        : [];
 
       d.instructions = Array.isArray(d.instructions) ? d.instructions : [];
 
       // default nutrition numbers
       d.nutrition = {
         calories: d.nutrition?.calories ?? 0,
-        protein:  d.nutrition?.protein  ?? 0,
-        carbs:    d.nutrition?.carbs    ?? 0,
-        fat:      d.nutrition?.fat      ?? 0,
-        fiber:    d.nutrition?.fiber    ?? 0,
-        sugar:    d.nutrition?.sugar    ?? 0,
-        sodium:   d.nutrition?.sodium   ?? 0,
+        protein: d.nutrition?.protein ?? 0,
+        carbs: d.nutrition?.carbs ?? 0,
+        fat: d.nutrition?.fat ?? 0,
+        fiber: d.nutrition?.fiber ?? 0,
+        sugar: d.nutrition?.sugar ?? 0,
+        sodium: d.nutrition?.sodium ?? 0,
       };
 
       // some detail endpoints don’t return flags; keep UI ones
@@ -363,7 +372,7 @@ const AdminRecipesList: React.FC = () => {
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+        <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
             {rows.map((r) => (
               <tr key={r.id} className="text-gray-900 dark:text-gray-100">
                 <td className="px-3 py-2">
@@ -447,7 +456,7 @@ const AdminRecipesList: React.FC = () => {
                   <input
                     value={form.title}
                     onChange={(e) => setField("title", e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                    className={fieldCls}
                   />
                 </label>
                 <label className="text-sm">
@@ -455,7 +464,7 @@ const AdminRecipesList: React.FC = () => {
                   <select
                     value={form.category}
                     onChange={(e) => setField("category", e.target.value as RecipeDetail["category"])}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 capitalize"
+                    className={`${fieldCls} capitalize`}
                   >
                     {CATS.map((c) => (
                       <option key={c} value={c}>
@@ -469,7 +478,7 @@ const AdminRecipesList: React.FC = () => {
                   <input
                     value={form.image || ""}
                     onChange={(e) => setField("image", e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                    className={fieldCls}
                     placeholder="https://…"
                   />
                 </label>
@@ -479,7 +488,7 @@ const AdminRecipesList: React.FC = () => {
                     value={form.description || ""}
                     onChange={(e) => setField("description", e.target.value)}
                     rows={3}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                    className={fieldCls}
                   />
                 </label>
               </div>
@@ -494,7 +503,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.calories ?? 0}
                       onChange={(e) => setNut("calories", Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      className={fieldCls}
                     />
                   </label>
                   <label className="text-sm">
@@ -503,7 +512,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.protein ?? 0}
                       onChange={(e) => setNut("protein", Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      className={fieldCls}
                     />
                   </label>
                   <label className="text-sm">
@@ -512,7 +521,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.carbs ?? 0}
                       onChange={(e) => setNut("carbs", Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      className={fieldCls}
                     />
                   </label>
                   <label className="text-sm">
@@ -521,7 +530,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.fat ?? 0}
                       onChange={(e) => setNut("fat", Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      className={fieldCls}
                     />
                   </label>
 
@@ -531,7 +540,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.fiber ?? 0}
                       onChange={(e) => setNut("fiber", Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      className={fieldCls}
                     />
                   </label>
                   <label className="text-sm">
@@ -540,7 +549,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.sugar ?? 0}
                       onChange={(e) => setNut("sugar", Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      className={fieldCls}
                     />
                   </label>
                   <label className="text-sm">
@@ -549,7 +558,7 @@ const AdminRecipesList: React.FC = () => {
                       type="number"
                       value={form.nutrition?.sodium ?? 0}
                       onChange={(e) => setNut("sodium", Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      className={fieldCls}
                     />
                   </label>
                 </div>
@@ -573,13 +582,13 @@ const AdminRecipesList: React.FC = () => {
                         placeholder="Quantity (e.g., 1 cup)"
                         value={ing.quantity || ""}
                         onChange={(e) => updateIngredient(idx, { quantity: e.target.value })}
-                        className="col-span-4 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                        className={`${fieldCls} col-span-4 text-sm`}
                       />
                       <input
                         placeholder="Ingredient name"
                         value={ing.name}
                         onChange={(e) => updateIngredient(idx, { name: e.target.value })}
-                        className="col-span-6 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                        className={`${fieldCls} col-span-6 text-sm`}
                       />
                       <div className="col-span-2 flex items-center justify-end gap-1">
                         <button
@@ -631,7 +640,7 @@ const AdminRecipesList: React.FC = () => {
                           value={step}
                           onChange={(e) => updateStep(idx, e.target.value)}
                           rows={2}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                          className={`${fieldCls} text-sm`}
                           placeholder={`Step ${idx + 1}`}
                         />
                       </div>
