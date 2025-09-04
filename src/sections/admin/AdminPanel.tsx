@@ -4,7 +4,7 @@ import { Users, BookOpen, ListOrdered, Globe } from "lucide-react";
 import AdminRecipes from "../../components/admin/AdminRecipes";
 import AdminUsers from "./AdminUsers";
 import AdminRecipesList from "./AdminRecipesList";
-import AdminImportRecipes from "./AdminImportRecipes"; // <-- NEW
+import AdminImportRecipes from "./AdminRecipesImport"; // <-- NEW
 
 type Tab = "recipes" | "recipesList" | "users" | "import";
 
@@ -48,7 +48,7 @@ const AdminPanel: React.FC = () => {
         {tab === "recipes" && <AdminRecipes />}
         {tab === "recipesList" && <AdminRecipesList />}
         {tab === "users" && <AdminUsers />}
-        {tab === "import" && <AdminImportRecipes />}{/* <-- NEW */}
+        {tab === "import" && <AdminRecipesImport />}{/* <-- NEW */}
       </div>
     </div>
   );
