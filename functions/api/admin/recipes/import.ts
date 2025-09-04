@@ -11,7 +11,7 @@ type Meal = {
   [k: `strMeasure${number}`]: string | undefined;
 };
 
-const SOURCE = "themealdb";
+const SOURCE = "themealdb" as const;
 
 function mapCategory(c?: string | null) {
   const v = (c || "").toLowerCase();
@@ -43,19 +43,17 @@ function splitSteps(instructions: string | null | undefined) {
     .filter(Boolean);
 }
 
-// Quick schema sanity (helps when prod DB missed migrations)
-async function assertSchema(env: any) {
-  const cols = await env.DB.prepare(
-    `PRAGMA table_info('recipes');`
-  ).all();
-
-  const names = new Set((cols.results ?? []).map((r: any) => r.name));
-  const need = ["external_source", "external_id"];
-  const missing = need.filter(n => !names.has(n));
+async function ensureExternalCols(env: any) {
+  // Ensure the columns exist (prod D1 can be behind local sometimes)
+  const info = await env.DB.prepare(`PRAGMA table_info('recipes')`).all();
+  const cols = new Set((info.results ?? []).map((r: any) => r.name));
+  const missing: string[] = [];
+  if (!cols.has("external_source")) missing.push("external_source");
+  if (!cols.has("external_id")) missing.push("external_id");
   if (missing.length) {
     throw new Error(
-      `recipes table missing columns: ${missing.join(", ")}. ` +
-      `Run:\nALTER TABLE recipes ADD COLUMN external_source TEXT;\n` +
+      `recipes missing ${missing.join(", ")}. Run:\n` +
+      `ALTER TABLE recipes ADD COLUMN external_source TEXT;\n` +
       `ALTER TABLE recipes ADD COLUMN external_id TEXT;\n` +
       `CREATE UNIQUE INDEX IF NOT EXISTS uq_recipes_external ON recipes(external_source, external_id);`
     );
@@ -66,115 +64,115 @@ export const onRequestPost: PagesFunction = async ({ env, request }) => {
   try {
     const user = await requireUser(env as any, request);
     requireAdmin(user);
-    await assertSchema(env);
+    await ensureExternalCols(env);
 
-    const { url, limit } = await request.json().catch(() => ({} as any));
+    const body = await request.json().catch(() => ({}));
+    const url: string = body.url;
+    const limit: number | undefined = body.limit;
+
     if (!url || typeof url !== "string") {
-      return new Response(JSON.stringify({ error: "Missing or invalid 'url'." }), { status: 400, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Missing or invalid 'url'." }), {
+        status: 400, headers: { "content-type": "application/json" },
+      });
     }
 
-    // Fetch upstream with guard around non-JSON failures
     const upstream = await fetch(url, { cf: { cacheTtl: 120 } });
     const ct = upstream.headers.get("content-type") || "";
     if (!upstream.ok) {
-      const body = ct.includes("application/json") ? await upstream.text() : (await upstream.text()).slice(0, 400);
-      return new Response(JSON.stringify({ error: `Upstream returned ${upstream.status}`, body }), {
-        status: 502, headers: { "content-type": "application/json" }
+      const txt = await upstream.text();
+      return new Response(JSON.stringify({ error: `Upstream ${upstream.status}`, body: txt.slice(0, 600) }), {
+        status: 502, headers: { "content-type": "application/json" },
+      });
+    }
+    if (!ct.includes("application/json")) {
+      const txt = await upstream.text();
+      return new Response(JSON.stringify({ error: "Upstream not JSON", body: txt.slice(0, 600) }), {
+        status: 502, headers: { "content-type": "application/json" },
       });
     }
 
-    let payload: any;
-    try { payload = await upstream.json(); }
-    catch (e: any) {
-      const text = await upstream.text();
-      return new Response(JSON.stringify({ error: "Upstream not JSON", body: text.slice(0, 400) }), {
-        status: 502, headers: { "content-type": "application/json" }
-      });
-    }
-
+    const payload = await upstream.json();
     let meals: Meal[] = Array.isArray(payload?.meals) ? payload.meals : [];
-    const max = Number.isFinite(limit) ? Math.max(0, Math.min(+limit, meals.length)) : meals.length;
-    meals = meals.slice(0, max);
-
-    if (meals.length === 0) {
-      return new Response(JSON.stringify({ ok: true, succeeded: 0, failed: 0, inserted: 0, updated: 0 }), {
-        headers: { "content-type": "application/json" },
-      });
-    }
+    if (typeof limit === "number" && limit >= 0) meals = meals.slice(0, limit);
 
     let succeeded = 0, failed = 0, inserted = 0, updated = 0;
+    const errors: Array<{ external_id: string; title?: string; reason: string }> = [];
 
-    for (const meal of meals) {
-      const external_id = meal.idMeal;
-      const title = meal.strMeal?.trim() || "Untitled";
-      const category = mapCategory(meal.strCategory);
-      const description = "";
-      const image_url = meal.strMealThumb || null;
-      const ingredients = extractIngredients(meal);
-      const steps = splitSteps(meal.strInstructions);
-
+    for (const m of meals) {
+      const external_id = m.idMeal;
       try {
-        // Upsert recipe by (external_source, external_id)
-        const rec = await env.DB.prepare(
-          `INSERT INTO recipes
-            (id, title, category, description, image_url, created_by, is_public, published, created_at, updated_at, external_source, external_id)
-           VALUES (?, ?, ?, ?, ?, ?, 1, 1, datetime('now'), datetime('now'), ?, ?)
-           ON CONFLICT(external_source, external_id) DO UPDATE SET
-             title=excluded.title,
-             category=excluded.category,
-             description=excluded.description,
-             image_url=excluded.image_url,
-             updated_at=datetime('now')
-           RETURNING id;`
-        ).bind(
-          crypto.randomUUID(), title, category, description, image_url, user.id, SOURCE, external_id
-        ).first<{ id: string }>();
+        const title = m.strMeal?.trim() || "Untitled";
+        const category = mapCategory(m.strCategory);
+        const description = ""; // MealDB doesn’t provide a great summary; keep blank
+        const image_url = m.strMealThumb || null;
+        const ingredients = extractIngredients(m);
+        const steps = splitSteps(m.strInstructions);
 
-        const recipeId = rec!.id;
+        // 1) Does a recipe already exist for (source, id)?
+        const existing = await env.DB.prepare(
+          `SELECT id FROM recipes WHERE external_source=? AND external_id=? LIMIT 1`
+        ).bind(SOURCE, external_id).first<{ id: string }>();
 
-        // Upsert nutrition (MealDB has no macros)
+        let recipeId = existing?.id;
+
+        if (!recipeId) {
+          // 2) Insert new recipe
+          recipeId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO recipes
+             (id, title, category, description, image_url, created_by, is_public, published, created_at, updated_at, external_source, external_id)
+             VALUES (?, ?, ?, ?, ?, ?, 1, 1, datetime('now'), datetime('now'), ?, ?)`
+          ).bind(
+            recipeId, title, category, description, image_url, user.id, SOURCE, external_id
+          ).run();
+          inserted++;
+        } else {
+          // 3) Update existing shell
+          await env.DB.prepare(
+            `UPDATE recipes
+               SET title=?, category=?, description=?, image_url=?, updated_at=datetime('now')
+             WHERE id=?`
+          ).bind(title, category, description, image_url, recipeId).run();
+          updated++;
+        }
+
+        // 4) Nutrition (MealDB lacks macros → zeros if not present)
         await env.DB.prepare(
-          `INSERT INTO recipe_nutrition (recipe_id, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)
-           VALUES (?, 0, 0, 0, 0, 0, 0, 0)
-           ON CONFLICT(recipe_id) DO NOTHING`
+          `INSERT OR IGNORE INTO recipe_nutrition
+             (recipe_id, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg)
+           VALUES (?, 0, 0, 0, 0, 0, 0, 0)`
         ).bind(recipeId).run();
 
-        // Replace ingredients + steps
+        // 5) Replace ingredients & steps
         const batch: D1PreparedStatement[] = [];
         batch.push(env.DB.prepare(`DELETE FROM recipe_ingredients WHERE recipe_id=?`).bind(recipeId));
         batch.push(env.DB.prepare(`DELETE FROM recipe_steps       WHERE recipe_id=?`).bind(recipeId));
 
         ingredients.forEach((ing, i) => {
           batch.push(
-            env.DB.prepare(
-              `INSERT INTO recipe_ingredients (id, recipe_id, name, quantity, position) VALUES (?, ?, ?, ?, ?)`
-            ).bind(crypto.randomUUID(), recipeId, ing.name, ing.quantity ?? null, i + 1)
+            env.DB
+              .prepare(`INSERT INTO recipe_ingredients (id, recipe_id, name, quantity, position) VALUES (?, ?, ?, ?, ?)`)
+              .bind(crypto.randomUUID(), recipeId, ing.name, ing.quantity ?? null, i + 1)
           );
         });
         steps.forEach((t, i) => {
           batch.push(
-            env.DB.prepare(
-              `INSERT INTO recipe_steps (id, recipe_id, step_no, text) VALUES (?, ?, ?, ?)`
-            ).bind(crypto.randomUUID(), recipeId, i + 1, t)
+            env.DB
+              .prepare(`INSERT INTO recipe_steps (id, recipe_id, step_no, text) VALUES (?, ?, ?, ?)`)
+              .bind(crypto.randomUUID(), recipeId, i + 1, t)
           );
         });
-
         if (batch.length) await env.DB.batch(batch);
 
-        // Rough insert/update counters
-        const existed = await env.DB.prepare(
-          `SELECT 1 FROM recipe_ingredients WHERE recipe_id=? LIMIT 1`
-        ).bind(recipeId).first<any>();
-        if (existed) updated++; else inserted++;
-
         succeeded++;
-      } catch (e) {
+      } catch (e: any) {
         failed++;
-        // Continue processing others; errors get surfaced in response counters
+        errors.push({ external_id, title: m?.strMeal, reason: e?.message || String(e) });
+        // continue with next meal
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, succeeded, failed, inserted, updated }), {
+    return new Response(JSON.stringify({ ok: true, succeeded, failed, inserted, updated, errors }), {
       headers: { "content-type": "application/json" },
     });
   } catch (e: any) {
