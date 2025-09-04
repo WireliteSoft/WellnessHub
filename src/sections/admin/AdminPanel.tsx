@@ -5,7 +5,7 @@ import { Users, BookOpen, ListOrdered, Download } from "lucide-react";
 import AdminRecipes from "../../components/admin/AdminRecipes"; // create form (existing)
 import AdminUsers from "./AdminUsers";                         // user mgmt table (existing)
 import AdminRecipesList from "./AdminRecipesList";             // recipes list+delete (existing)
-import AdminRecipesImport from "./AdminRecipesImport";         // correct file name & path
+import AdminRecipesImport from "./AdminRecipeImport";         // correct file name & path
 
 type Tab = "recipes" | "recipesList" | "users" | "import";
 
