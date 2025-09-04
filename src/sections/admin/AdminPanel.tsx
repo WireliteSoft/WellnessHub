@@ -5,7 +5,7 @@ import { Users, BookOpen, ListOrdered, Download } from "lucide-react";
 import AdminRecipes from "../../components/admin/AdminRecipes"; // create form (existing)
 import AdminUsers from "./AdminUsers";                         // user mgmt table (existing)
 import AdminRecipesList from "./AdminRecipesList";             // recipes list+delete (existing)
-import AdminRecipesImport from "./AdminRecipesImport";         // ✅ correct file name & path
+import AdminRecipesImport from "./AdminRecipesImport";         // correct file name & path
 
 type Tab = "recipes" | "recipesList" | "users" | "import";
 
@@ -16,7 +16,7 @@ const AdminPanel: React.FC = () => {
     { id: "recipes",     label: "Add Recipe",      icon: BookOpen },
     { id: "recipesList", label: "Manage Recipes",  icon: ListOrdered },
     { id: "users",       label: "Users",           icon: Users },
-    { id: "import",      label: "Import Recipes",  icon: Download }, // ✅ new tab
+    { id: "import",      label: "Import Recipes",  icon: Download }, // new tab
   ];
 
   return (
@@ -49,7 +49,7 @@ const AdminPanel: React.FC = () => {
         {tab === "recipes" && <AdminRecipes />}
         {tab === "recipesList" && <AdminRecipesList />}
         {tab === "users" && <AdminUsers />}
-        {tab === "import" && <AdminRecipesImport />} {/* ✅ importer */}
+        {tab === "import" && <AdminRecipesImport />} {/* importer */}
       </div>
     </div>
   );
