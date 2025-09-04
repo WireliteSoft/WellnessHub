@@ -1,202 +1,188 @@
+// src/sections/admin/AdminImportRecipes.tsx
 import React, { useMemo, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { Upload, RefreshCcw, Loader2 } from "lucide-react";
+import { Globe, Upload, ListChecks, Trash2 } from "lucide-react";
 
-type ImportResult = {
-  input: string;
-  ok: boolean;
-  inserted?: number;
-  updated?: number;
-  errors?: string[];
-};
-
+type ImportDetail = { url: string; ok: boolean; count?: number; error?: string };
 type ImportResponse = {
   ok: boolean;
-  succeeded?: number;
-  failed?: number;
-  inserted?: number;
-  updated?: number;
-  results?: ImportResult[];
-  error?: string;
+  succeeded: number;
+  failed: number;
+  inserted: number;
+  updated: number;
+  details: ImportDetail[];
 };
 
-const AdminRecipeImport: React.FC = () => {
+const AdminImportRecipes: React.FC = () => {
   const { token } = useAuth();
-  const [raw, setRaw] = useState("");
-  const [category, setCategory] = useState<"" | "breakfast" | "lunch" | "dinner" | "snack" | "other">("");
-  const [limit, setLimit] = useState(10);
-  const [loading, setLoading] = useState(false);
-  const [resp, setResp] = useState<ImportResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
   const headers = useMemo(
-    () => ({
-      Authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    }),
+    () => ({ Authorization: `Bearer ${token}`, "content-type": "application/json" }),
     [token]
   );
 
-  async function handleImport(e: React.FormEvent) {
-    e.preventDefault();
+  const [urlsText, setUrlsText] = useState(
+    "https://www.themealdb.com/api/json/v1/1/lookup.php?i=52772"
+  );
+  const [limit, setLimit] = useState<number | "">(10);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ImportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const urls = useMemo(
+    () =>
+      urlsText
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [urlsText]
+  );
+
+  async function runImport() {
     setLoading(true);
-    setResp(null);
     setError(null);
-
-    // Build body to match the server:
-    // - one line → { url }
-    // - multiple lines → { urls: [] }
-    const lines = raw
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const body: any =
-      lines.length <= 1
-        ? { url: lines[0] || "" }
-        : { urls: lines };
-
-    if (category) body.category = category;
-    if (limit) body.limit = limit;
-
+    setResult(null);
     try {
+      // Send single url when only one line; otherwise send urls[]
+      const body =
+        urls.length === 1
+          ? { url: urls[0], ...(limit ? { limit } : {}) }
+          : { urls, ...(limit ? { limit } : {}) };
+
       const res = await fetch("/api/admin/recipes/import", {
         method: "POST",
         headers,
         body: JSON.stringify(body),
       });
 
-      // Your worker now always returns JSON on error, but be defensive:
-      const ct = res.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) {
-        const txt = await res.text();
-        throw new Error(`Non-JSON response (${res.status}): ${txt.slice(0, 200)}`);
+      // Always try to parse JSON (our Worker returns JSON for errors, too)
+      const txt = await res.text();
+      let json: ImportResponse | { error: string };
+      try {
+        json = JSON.parse(txt);
+      } catch {
+        throw new Error(`Unexpected response: ${txt.slice(0, 200)}`);
       }
 
-      const data = (await res.json()) as ImportResponse;
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Import failed");
-      }
-      setResp(data);
-    } catch (err: any) {
-      setError(err?.message || "Server error");
+      if (!res.ok) throw new Error((json as any).error || "Import failed");
+
+      setResult(json as ImportResponse);
+    } catch (e: any) {
+      setError(e?.message || "Server error");
     } finally {
       setLoading(false);
     }
   }
 
-  function handleClear() {
-    setRaw("");
-    setResp(null);
-    setError(null);
-  }
-
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Import Recipes (TheMealDB)</h2>
-        <button
-          onClick={handleClear}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-        >
-          <RefreshCcw className="h-4 w-4" />
-          Clear
-        </button>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <Globe className="h-5 w-5" />
+          Import Recipes
+        </h2>
       </header>
 
-      <form onSubmit={handleImport} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Recipe URLs (one per line) or MealDB numeric IDs
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* left: input form */}
+        <div className="lg:col-span-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Recipe URLs (one per line)
           </label>
           <textarea
-            value={raw}
-            onChange={(e) => setRaw(e.target.value)}
-            rows={6}
-            placeholder={`Examples:
-https://www.themealdb.com/api/json/v1/1/lookup.php?i=52772
-https://www.themealdb.com/api/json/v1/1/search.php?s=chicken
-https://www.themealdb.com/api/json/v1/1/filter.php?c=Seafood
-52772
-`}
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2"
+            value={urlsText}
+            onChange={(e) => setUrlsText(e.target.value)}
+            rows={8}
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-3"
+            placeholder="https://www.themealdb.com/api/json/v1/1/lookup.php?i=52772"
           />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category (optional override)</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as any)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2"
-            >
-              <option value="">(auto from source)</option>
-              <option value="breakfast">breakfast</option>
-              <option value="lunch">lunch</option>
-              <option value="dinner">dinner</option>
-              <option value="snack">snack</option>
-              <option value="other">other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Limit (search/filter)</label>
+          <div className="mt-3 flex items-center gap-3">
+            <label className="text-sm text-gray-700 dark:text-gray-300">Per-URL limit (for searches)</label>
             <input
               type="number"
               min={1}
               max={50}
               value={limit}
-              onChange={(e) => setLimit(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2"
+              onChange={(e) => setLimit(e.target.value ? Number(e.target.value) : "")}
+              className="w-24 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-2"
             />
           </div>
-          <div className="flex items-end">
+
+          <div className="mt-4 flex gap-2">
             <button
-              type="submit"
-              disabled={loading || !raw.trim()}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white bg-gradient-to-r from-emerald-500 to-blue-500 disabled:opacity-50"
+              onClick={runImport}
+              disabled={loading || urls.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-blue-500 text-white disabled:opacity-60"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              Import
+              <Upload className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
+              {loading ? "Importing…" : "Import"}
+            </button>
+            <button
+              onClick={() => {
+                setResult(null);
+                setError(null);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200"
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear Results
             </button>
           </div>
-        </div>
-      </form>
 
-      {error && (
-        <div className="text-sm text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
-          {error}
+          {error && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
         </div>
-      )}
 
-      {resp && (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-800 dark:text-gray-200">
-            Results • {resp.succeeded ?? 0} succeeded · {resp.failed ?? 0} failed
-            {typeof resp.inserted === "number" || typeof resp.updated === "number" ? (
-              <> · {resp.inserted ?? 0} inserted · {resp.updated ?? 0} updated</>
-            ) : null}
-          </div>
-          <div className="divide-y divide-gray-200 dark:divide-gray-800">
-            {(resp.results ?? []).map((r, idx) => (
-              <div key={idx} className="px-4 py-3 text-sm">
-                <div className="font-medium text-gray-900 dark:text-gray-100 break-all">{r.input}</div>
-                {r.ok ? (
-                  <div className="text-emerald-700 dark:text-emerald-400">
-                    ok • inserted {r.inserted ?? 0} • updated {r.updated ?? 0}
-                  </div>
-                ) : (
-                  <div className="text-red-600 dark:text-red-400">
-                    failed {r.errors?.length ? `• ${r.errors.join("; ")}` : ""}
-                  </div>
-                )}
+        {/* right: results */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2">
+            <ListChecks className="h-4 w-4" />
+            Results
+          </h3>
+
+          {!result ? (
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {urls.length} URL{urls.length === 1 ? "" : "s"} ready. Click <b>Import</b> to begin.
+            </p>
+          ) : (
+            <>
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                <b>{result.succeeded}</b> succeeded · <b>{result.failed}</b> failed
+                <br />
+                Inserted: <b>{result.inserted}</b> · Updated: <b>{result.updated}</b>
               </div>
-            ))}
-          </div>
+
+              <div className="mt-3 max-h-64 overflow-auto rounded-lg border border-gray-200 dark:border-gray-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
+                    <tr>
+                      <th className="text-left px-2 py-1">URL</th>
+                      <th className="text-left px-2 py-1">Status</th>
+                      <th className="text-left px-2 py-1">Count / Error</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {result.details.map((d, i) => (
+                      <tr key={i} className="text-gray-900 dark:text-gray-100">
+                        <td className="px-2 py-1 break-all">{d.url}</td>
+                        <td className="px-2 py-1">{d.ok ? "OK" : "Failed"}</td>
+                        <td className="px-2 py-1">{d.ok ? d.count ?? 0 : d.error || "error"}</td>
+                      </tr>
+                    ))}
+                    {result.details.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-2 py-3 text-center text-gray-500 dark:text-gray-400">
+                          No details.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
 
-export default AdminRecipeImport;
+export default AdminImportRecipes;
