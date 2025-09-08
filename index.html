@@ -10,29 +10,88 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <!-- index.html -->
-  <script>
-    // Auto-scroll to top when bottom is reached
-    document.addEventListener('DOMContentLoaded', () => {
-      const sentinel = document.createElement('div');
-      sentinel.style.height = '1px';
-      sentinel.style.width = '1px';
-      sentinel.style.pointerEvents = 'none';
-      document.body.appendChild(sentinel);
+<!-- Back to top button -->
+<style>
+  #backToTop {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 9999px;
+    color: #fff;
+    background: linear-gradient(90deg,#10b981,#3b82f6);
+    box-shadow: 0 8px 20px rgba(0,0,0,.15);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  #backToTop.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  /* subtle ring for dark mode */
+  @media (prefers-color-scheme: dark) {
+    #backToTop { box-shadow: 0 8px 20px rgba(255,255,255,.08); }
+  }
+  /* smaller label on tiny screens */
+  @media (max-width: 480px) {
+    #backToTop span { display: none; }
+  }
+</style>
 
-      let cooling = false;
-      const COOL_MS = 1200;
+<button id="backToTop" aria-label="Back to top">
+  <!-- simple up arrow -->
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+       aria-hidden="true">
+    <path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path>
+  </svg>
+  <span>Top</span>
+</button>
 
-      const io = new IntersectionObserver((entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting && !cooling) {
-          cooling = true;
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          setTimeout(() => (cooling = false), COOL_MS);
-        }
-      }, { threshold: 1 });
+<script>
+  (function () {
+    const btn = document.getElementById('backToTop');
+    if (!btn) return;
 
-      io.observe(sentinel);
-    });
-  </script>
+    const SHOW_AFTER_PX = 300;
+    const NEAR_BOTTOM_PX = 200;
+
+    const update = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      const nearBottom =
+        window.innerHeight + y >= (document.documentElement.scrollHeight - NEAR_BOTTOM_PX);
+      if (y > SHOW_AFTER_PX || nearBottom) {
+        btn.classList.add('show');
+      } else {
+        btn.classList.remove('show');
+      }
+    };
+
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const goTop = () => {
+      if (prefersReduced) {
+        window.scrollTo(0, 0);
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+
+    btn.addEventListener('click', goTop);
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    document.addEventListener('DOMContentLoaded', update);
+    update();
+  })();
+</script>
+
   </body>
 </html>
