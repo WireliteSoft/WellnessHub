@@ -9,5 +9,30 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- index.html -->
+  <script>
+    // Auto-scroll to top when bottom is reached
+    document.addEventListener('DOMContentLoaded', () => {
+      const sentinel = document.createElement('div');
+      sentinel.style.height = '1px';
+      sentinel.style.width = '1px';
+      sentinel.style.pointerEvents = 'none';
+      document.body.appendChild(sentinel);
+
+      let cooling = false;
+      const COOL_MS = 1200;
+
+      const io = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && !cooling) {
+          cooling = true;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          setTimeout(() => (cooling = false), COOL_MS);
+        }
+      }, { threshold: 1 });
+
+      io.observe(sentinel);
+    });
+  </script>
   </body>
 </html>
